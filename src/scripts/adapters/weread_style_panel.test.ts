@@ -64,7 +64,7 @@ describe('WeRead reading width control', () => {
     expect(context.styles.has('wxrd-reading-width')).toBe(false);
   });
 
-  it('persists the selected width and applies a responsive content limit', () => {
+  it('preserves normal-reader gutters and applies a responsive content limit', () => {
     const context = createAPI();
     teardown = setupStylePanel(context.api);
     const slider = document.querySelector<HTMLInputElement>('input[data-key="readingWidth"]')!;
@@ -77,8 +77,12 @@ describe('WeRead reading width control', () => {
 
     context.updateSettings({ readingWidth: 1040 });
     const css = context.styles.get('wxrd-reading-width');
+    expect(css).toContain('.readerContent > .app_content:not(.app_content_in_reader)');
+    expect(css).toContain('min(1240px, calc(100vw - 224px))');
+    expect(css).toContain('.wr_horizontalReader_app_content .readerChapterContent');
     expect(css).toContain('min(1040px, calc(100vw - 224px))');
-    expect(css).toContain('min(560px, calc(50vw - 72px))');
+    expect(css).toContain('min(668px, calc(50vw - 72px))');
+    expect(css).not.toContain('html body .app_content,');
     expect(document.querySelector('[data-output="readingWidth"]')?.textContent).toBe('1040px');
   });
 

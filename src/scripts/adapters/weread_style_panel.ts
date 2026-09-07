@@ -27,6 +27,10 @@ const DEFAULT_READING_WIDTH = 1200;
 const MIN_READING_WIDTH = 720;
 const MAX_READING_WIDTH = 1600;
 const READING_WIDTH_STEP = 40;
+/** 纵向阅读正文层由微信读书保留左右各 100px 留白。 */
+const NORMAL_READER_GUTTERS = 200;
+/** 纵向阅读工具栏与正文外层右边缘的原生间距。 */
+const NORMAL_READER_TOOLBAR_GAP = 48;
 
 /** 官方正文段落选择器：测量层 preRenderContent + 渲染层 renderTargetContent 的 p，
  *  canvas 由测量层 DOM 快照而来，两者必须同步改。issue #4 时代的 .content/.quotation
@@ -226,11 +230,16 @@ const mountPanel = (api: PluginAPI): (() => void) => {
 
     const readingWidth = normalizeReadingWidth(config.readingWidth);
     if (readingWidth !== null) {
-      const toolbarOffset = readingWidth / 2 + 40;
+      const normalReaderWidth = readingWidth + NORMAL_READER_GUTTERS;
+      const toolbarOffset = normalReaderWidth / 2 + NORMAL_READER_TOOLBAR_GAP;
       api.style.inject('wxrd-reading-width', `
-        html body .readerTopBar,
-        html body .app_content,
-        html body .readerChapterContent {
+        html body .readerContent > .app_content:not(.app_content_in_reader),
+        html body .readerContent > .app_content:not(.app_content_in_reader) > .readerTopBar {
+          width: min(${normalReaderWidth}px, calc(100vw - 224px)) !important;
+          max-width: min(${normalReaderWidth}px, calc(100vw - 224px)) !important;
+        }
+        html body .wr_horizontalReader_app_content > .readerTopBar,
+        html body .wr_horizontalReader_app_content .readerChapterContent {
           width: min(${readingWidth}px, calc(100vw - 224px)) !important;
           max-width: min(${readingWidth}px, calc(100vw - 224px)) !important;
         }

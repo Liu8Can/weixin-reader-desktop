@@ -2,7 +2,7 @@
  * 微信读书阅读样式面板（issue #3 / #4）
  *
  * 右侧工具栏注入「样式」按钮，弹窗提供：
- * - 纯白正文（issue #3）：黑底 + canvas brightness 提亮（微信读书暗色正文约
+ * - 纯白正文（issue #3）：统一阅读区域背景 + canvas brightness 提亮（微信读书暗色正文约
  *   RGB(155)；高亮档 2.2 提至纯白并锐化边缘，不可用 invert，反色后更暗）
  * - 行间距 / 段间距（issue #4）：命中已知正文类调整 DOM 排版层，
  *   微信读书随后将重排结果快照进 canvas。绝不粗粒度命中 #preRenderContent *，
@@ -22,6 +22,13 @@ type SpacingChoice = number | null;
 const DEFAULT_LINE_HEIGHT = 1.9;
 /** 原生段间距：官方 p 规则 margin-bottom: 1em（相邻段折叠、末段归零） */
 const DEFAULT_PARAGRAPH_SPACING = 1.0;
+const DEFAULT_READING_BACKGROUND = '#18191b';
+
+const READING_BACKGROUND_PRESETS = [
+  { label: '柔和', color: '#202124', brightness: 1.1 },
+  { label: '标准', color: DEFAULT_READING_BACKGROUND, brightness: 1.35 },
+  { label: '高对比', color: '#101112', brightness: 2.2 },
+] as const;
 
 /** 官方正文段落选择器：测量层 preRenderContent + 渲染层 renderTargetContent 的 p，
  *  canvas 由测量层 DOM 快照而来，两者必须同步改。issue #4 时代的 .content/.quotation
@@ -99,6 +106,20 @@ const mountPanel = (api: PluginAPI): (() => void) => {
         <input type="checkbox" data-key="whiteText">
         <span>纯白正文</span>
       </label>
+      <div class="wxrd-field" data-row="background">
+        <span>正文背景</span>
+        <div class="wxrd-color-options" data-key="whiteTextBackground">
+          ${READING_BACKGROUND_PRESETS.map(preset => `
+            <button type="button" data-background="${preset.color}" data-brightness="${preset.brightness}" title="${preset.label}">
+              <span class="wxrd-color-swatch" style="background:${preset.color}"></span>
+              <span>${preset.label}</span>
+            </button>`).join('')}
+          <label class="wxrd-color-custom" title="自定义背景">
+            <input type="color" data-key="whiteTextBackground" value="${DEFAULT_READING_BACKGROUND}" aria-label="自定义正文背景">
+            <span>自定义</span>
+          </label>
+        </div>
+      </div>
       <div class="wxrd-field" data-row="brightness">
         <span>文字亮度</span>
         <div class="wxrd-segments" data-key="whiteTextBrightness">
@@ -107,7 +128,7 @@ const mountPanel = (api: PluginAPI): (() => void) => {
           <button type="button" data-value="2.2">高亮</button>
         </div>
       </div>
-      <p class="wxrd-hint">夜间：黑底 + 提亮文字；日间：无效；插图同步提亮</p>
+      <p class="wxrd-hint">夜间：统一背景 + 提亮文字；日间：无效；插图同步提亮</p>
     </div>
     <div class="wxrd-panel-section">
       <div class="wxrd-field">
@@ -156,6 +177,18 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     void settings.set('whiteText', whiteTextInput.checked);
   });
 
+  const backgroundInput = panel.querySelector<HTMLInputElement>('input[type="color"][data-key="whiteTextBackground"]')!;
+  panel.querySelector('.wxrd-color-options[data-key="whiteTextBackground"]')
+    ?.addEventListener('click', (event) => {
+      const preset = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-background]');
+      if (!preset?.dataset.background || !preset.dataset.brightness) return;
+      void settings.set('whiteTextBackground', preset.dataset.background)
+        .then(() => settings.set('whiteTextBrightness', Number(preset.dataset.brightness)));
+    });
+  backgroundInput.addEventListener('change', () => {
+    void settings.set('whiteTextBackground', backgroundInput.value);
+  });
+
   // 亮度档位（柔和/标准/高亮）：夜间 canvas 提亮倍数
   panel.querySelector('.wxrd-segments[data-key="whiteTextBrightness"]')
     ?.addEventListener('click', (event) => {
@@ -176,6 +209,7 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     // 恢复默认 = 清空本面板全部设置（含纯白正文），回到微信读书原生观感
     void settings.set('whiteText', false)
       .then(() => settings.set('whiteTextBrightness', 1.35))
+      .then(() => settings.set('whiteTextBackground', DEFAULT_READING_BACKGROUND))
       .then(() => settings.set('lineHeight', null))
       .then(() => settings.set('paragraphSpacing', null));
   });
@@ -186,24 +220,26 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     const whiteText = config.whiteText === true;
     if (whiteText) {
       const brightness = Number(config.whiteTextBrightness ?? 1.35) || 1.35;
-      // 夜间（无 wr_whiteTheme）：黑底 + canvas 提亮（155 灰 → 255 白）；
+      const background = normalizeReadingBackground(config.whiteTextBackground);
+      // 夜间（无 wr_whiteTheme）：统一阅读区域背景 + canvas 提亮（155 灰 → 255 白）；
       // 日间（wr_whiteTheme）：纯白背景即可，正文 #0d141e 本已近黑（PS 吸管实测）
-      // 不覆盖 body 背景：正文卡片与页面底色保留色差，微信读书的圆角才可见
       api.style.inject('wxrd-white-text', `
+        body:not(.wr_whiteTheme) .readerContent > .app_content:not(.app_content_in_reader),
+        body:not(.wr_whiteTheme) .wr_horizontalReader_app_content,
         body:not(.wr_whiteTheme) .readerChapterContent,
         body:not(.wr_whiteTheme) .renderTargetContainer,
         body:not(.wr_whiteTheme) .wr_canvasContainer {
-          background-color: #000 !important;
-          border-radius: 16px !important;
+          background-color: ${background} !important;
         }
         body:not(.wr_whiteTheme) .wr_canvasContainer canvas {
           filter: brightness(${brightness}) !important;
         }
+        body.wr_whiteTheme .readerContent > .app_content:not(.app_content_in_reader),
+        body.wr_whiteTheme .wr_horizontalReader_app_content,
         body.wr_whiteTheme .readerChapterContent,
         body.wr_whiteTheme .renderTargetContainer,
         body.wr_whiteTheme .wr_canvasContainer {
           background-color: #fff !important;
-          border-radius: 16px !important;
         }`);
     } else {
       api.style.remove('wxrd-white-text');
@@ -247,6 +283,16 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     brightnessGroup?.querySelectorAll('button').forEach(item => {
       item.classList.toggle('wxrd-selected', item.dataset.value === brightness);
     });
+    const background = normalizeReadingBackground(config.whiteTextBackground);
+    backgroundInput.value = background;
+    const backgroundGroup = panel.querySelector<HTMLElement>('.wxrd-color-options[data-key="whiteTextBackground"]');
+    let matchesPreset = false;
+    backgroundGroup?.querySelectorAll<HTMLButtonElement>('button[data-background]').forEach(item => {
+      const selected = item.dataset.background === background;
+      item.classList.toggle('wxrd-selected', selected);
+      matchesPreset ||= selected;
+    });
+    backgroundGroup?.querySelector('.wxrd-color-custom')?.classList.toggle('wxrd-selected', !matchesPreset);
     const defaults: Record<string, number> = {
       lineHeight: DEFAULT_LINE_HEIGHT,
       paragraphSpacing: DEFAULT_PARAGRAPH_SPACING,
@@ -276,6 +322,13 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     api.style.remove('wxrd-white-text');
     api.style.remove('wxrd-reading-spacing');
   };
+};
+
+const normalizeReadingBackground = (value: unknown): string => {
+  if (typeof value !== 'string' || !/^#[0-9a-f]{6}$/i.test(value)) {
+    return DEFAULT_READING_BACKGROUND;
+  }
+  return value.toLowerCase();
 };
 
 const PANEL_UI_CSS = `
@@ -371,6 +424,48 @@ const PANEL_UI_CSS = `
   background: rgba(128, 128, 128, .25);
   border-color: rgba(128, 128, 128, .6);
 }
+#wxrd-style-panel .wxrd-color-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+#wxrd-style-panel .wxrd-color-options button,
+#wxrd-style-panel .wxrd-color-custom {
+  min-width: 0;
+  height: 48px;
+  padding: 5px 2px;
+  border: 1px solid rgba(128, 128, 128, .35);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+#wxrd-style-panel .wxrd-color-options button.wxrd-selected,
+#wxrd-style-panel .wxrd-color-custom.wxrd-selected {
+  border-color: currentColor;
+  background: rgba(128, 128, 128, .16);
+}
+#wxrd-style-panel .wxrd-color-swatch,
+#wxrd-style-panel .wxrd-color-custom input {
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 4px;
+}
+#wxrd-style-panel .wxrd-color-custom input {
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
 #wxrd-style-panel .wxrd-hint {
   margin: 10px 0 0;
   font-size: 12px;
@@ -388,7 +483,9 @@ const PANEL_UI_CSS = `
   cursor: pointer;
 }
 #wxrd-style-panel .wxrd-reset:hover { background: rgba(128, 128, 128, .12); }
-#wxrd-style-panel .wxrd-field[data-row="brightness"] { margin-top: 10px; }
+#wxrd-style-panel .wxrd-field[data-row="background"] { margin-top: 12px; }
+#wxrd-style-panel .wxrd-field[data-row="brightness"] { margin-top: 12px; }
+#wxrd-style-panel:not([data-white-text="on"]) .wxrd-field[data-row="background"],
 #wxrd-style-panel:not([data-white-text="on"]) .wxrd-field[data-row="brightness"],
 #wxrd-style-panel:not([data-white-text="on"]) .wxrd-hint {
   display: none;

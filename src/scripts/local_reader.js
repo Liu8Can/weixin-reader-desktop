@@ -68,7 +68,7 @@
       body {
         background-color: #f4f5f7 !important;
       }
-    `}initPageTurnMonitor(){if(this.pageTurnMonitorInitialized){return}this.pageTurnMonitorInitialized=true;this.keydownHandler=(e)=>{if(e.key==="ArrowRight"||e.key==="ArrowLeft"){this.handlePageTurn()}};window.addEventListener("keydown",this.keydownHandler);const addButtonListener=()=>{const nextBtn=document.querySelector(".renderTarget_pager_button_right");const prevBtn=document.querySelector(".renderTarget_pager_button");if(nextBtn&&!this.nextBtnHandler){this.nextBtnHandler=()=>this.handlePageTurn();nextBtn.addEventListener("click",this.nextBtnHandler)}if(prevBtn&&!this.prevBtnHandler){this.prevBtnHandler=()=>this.handlePageTurn();prevBtn.addEventListener("click",this.prevBtnHandler)}};if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",addButtonListener,{once:true})}else{addButtonListener()}}destroy(){if(this.keydownHandler){window.removeEventListener("keydown",this.keydownHandler);this.keydownHandler=null}if(this.nextBtnHandler){const nextBtn=document.querySelector(".renderTarget_pager_button_right");if(nextBtn){nextBtn.removeEventListener("click",this.nextBtnHandler)}this.nextBtnHandler=null}if(this.prevBtnHandler){const prevBtn=document.querySelector(".renderTarget_pager_button");if(prevBtn){prevBtn.removeEventListener("click",this.prevBtnHandler)}this.prevBtnHandler=null}if(this.progressTracker){this.progressTracker.destroy();this.progressTracker=null}}handlePageTurn(){const now=Date.now();if(now-this.lastPageTurnTime<500){return}this.lastPageTurnTime=now}async nextPage(){this.triggerKey("Right");this.handlePageTurn()}async prevPage(){this.triggerKey("Left");this.handlePageTurn()}isDoubleColumn(){return!!document.querySelector(".wr_horizontalReader")}isAtBottom(){if(this.isDoubleColumn()){return false}const totalHeight=document.documentElement.scrollHeight;const currentPos=window.innerHeight+window.scrollY;return currentPos>=totalHeight-300}getChapterProgress(){if(!this.progressTracker){return 0}return this.progressTracker.getCurrentProgress()}extractNumericBookId(){const jsonLdScript=document.querySelector('script[type="application/ld+json"]');if(jsonLdScript&&jsonLdScript.textContent){try{const data=JSON.parse(jsonLdScript.textContent);if(data["@Id"]){return data["@Id"]}}catch(e){}}if(window.bookId){return String(window.bookId)}const urlMatch=window.location.pathname.match(/\/web\/reader\/([^/]+)/);if(urlMatch){return urlMatch[1]}return null}getNextChapterSelector(){return".readerFooter_button"}clickNextChapter(){const nextButton=document.querySelector(this.getNextChapterSelector());if(nextButton){nextButton.click()}}getReaderMenuItems(){return["reader_wide","hide_toolbar","auto_flip"]}}var DEFAULT_LINE_HEIGHT=1.9;var DEFAULT_PARAGRAPH_SPACING=1;var CONTENT_PARAGRAPH_SELECTOR=[".readerChapterContent .preRenderContent p",".readerChapterContent .renderTargetContent p"].join(`,
+    `}initPageTurnMonitor(){if(this.pageTurnMonitorInitialized){return}this.pageTurnMonitorInitialized=true;this.keydownHandler=(e)=>{if(e.key==="ArrowRight"||e.key==="ArrowLeft"){this.handlePageTurn()}};window.addEventListener("keydown",this.keydownHandler);const addButtonListener=()=>{const nextBtn=document.querySelector(".renderTarget_pager_button_right");const prevBtn=document.querySelector(".renderTarget_pager_button");if(nextBtn&&!this.nextBtnHandler){this.nextBtnHandler=()=>this.handlePageTurn();nextBtn.addEventListener("click",this.nextBtnHandler)}if(prevBtn&&!this.prevBtnHandler){this.prevBtnHandler=()=>this.handlePageTurn();prevBtn.addEventListener("click",this.prevBtnHandler)}};if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",addButtonListener,{once:true})}else{addButtonListener()}}destroy(){if(this.keydownHandler){window.removeEventListener("keydown",this.keydownHandler);this.keydownHandler=null}if(this.nextBtnHandler){const nextBtn=document.querySelector(".renderTarget_pager_button_right");if(nextBtn){nextBtn.removeEventListener("click",this.nextBtnHandler)}this.nextBtnHandler=null}if(this.prevBtnHandler){const prevBtn=document.querySelector(".renderTarget_pager_button");if(prevBtn){prevBtn.removeEventListener("click",this.prevBtnHandler)}this.prevBtnHandler=null}if(this.progressTracker){this.progressTracker.destroy();this.progressTracker=null}}handlePageTurn(){const now=Date.now();if(now-this.lastPageTurnTime<500){return}this.lastPageTurnTime=now}async nextPage(){this.triggerKey("Right");this.handlePageTurn()}async prevPage(){this.triggerKey("Left");this.handlePageTurn()}isDoubleColumn(){return!!document.querySelector(".wr_horizontalReader")}isAtBottom(){if(this.isDoubleColumn()){return false}const totalHeight=document.documentElement.scrollHeight;const currentPos=window.innerHeight+window.scrollY;return currentPos>=totalHeight-300}getChapterProgress(){if(!this.progressTracker){return 0}return this.progressTracker.getCurrentProgress()}extractNumericBookId(){const jsonLdScript=document.querySelector('script[type="application/ld+json"]');if(jsonLdScript&&jsonLdScript.textContent){try{const data=JSON.parse(jsonLdScript.textContent);if(data["@Id"]){return data["@Id"]}}catch(e){}}if(window.bookId){return String(window.bookId)}const urlMatch=window.location.pathname.match(/\/web\/reader\/([^/]+)/);if(urlMatch){return urlMatch[1]}return null}getNextChapterSelector(){return".readerFooter_button"}clickNextChapter(){const nextButton=document.querySelector(this.getNextChapterSelector());if(nextButton){nextButton.click()}}getReaderMenuItems(){return["reader_wide","hide_toolbar","auto_flip"]}}var DEFAULT_LINE_HEIGHT=1.9;var DEFAULT_PARAGRAPH_SPACING=1;var DEFAULT_READING_BACKGROUND="#18191b";var READING_BACKGROUND_PRESETS=[{label:"柔和",color:"#202124",brightness:1.1},{label:"标准",color:DEFAULT_READING_BACKGROUND,brightness:1.35},{label:"高对比",color:"#101112",brightness:2.2}];var CONTENT_PARAGRAPH_SELECTOR=[".readerChapterContent .preRenderContent p",".readerChapterContent .renderTargetContent p"].join(`,
         `);var STYLE_BUTTON_ID="wxrd-style-button";var STYLE_PANEL_ID="wxrd-style-panel";var setupStylePanel=(api)=>{const log2=api.log;let teardown=null;const ensureButton=()=>{if(teardown){if(document.getElementById(STYLE_BUTTON_ID))return;teardown();teardown=null}if(!location.pathname.includes("/web/reader/"))return;const controls=document.querySelector(".readerControls");if(!controls)return;teardown=mountPanel(api);log2.info("[WeRead] 阅读样式面板已注入")};const observer=new MutationObserver(()=>ensureButton());observer.observe(document.documentElement,{childList:true,subtree:true});ensureButton();return()=>{observer.disconnect();teardown?.();teardown=null}};var mountPanel=(api)=>{const settings=api.settings;const button=document.createElement("button");button.id=STYLE_BUTTON_ID;button.type="button";button.title="阅读样式";button.className="readerControls_item";button.setAttribute("aria-label","阅读样式");button.innerHTML=`
     <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true">
       <rect x="4" y="4.5" width="2" height="2" rx="1"/>
@@ -88,6 +88,20 @@
         <input type="checkbox" data-key="whiteText">
         <span>纯白正文</span>
       </label>
+      <div class="wxrd-field" data-row="background">
+        <span>正文背景</span>
+        <div class="wxrd-color-options" data-key="whiteTextBackground">
+          ${READING_BACKGROUND_PRESETS.map((preset)=>`
+            <button type="button" data-background="${preset.color}" data-brightness="${preset.brightness}" title="${preset.label}">
+              <span class="wxrd-color-swatch" style="background:${preset.color}"></span>
+              <span>${preset.label}</span>
+            </button>`).join("")}
+          <label class="wxrd-color-custom" title="自定义背景">
+            <input type="color" data-key="whiteTextBackground" value="${DEFAULT_READING_BACKGROUND}" aria-label="自定义正文背景">
+            <span>自定义</span>
+          </label>
+        </div>
+      </div>
       <div class="wxrd-field" data-row="brightness">
         <span>文字亮度</span>
         <div class="wxrd-segments" data-key="whiteTextBrightness">
@@ -96,7 +110,7 @@
           <button type="button" data-value="2.2">高亮</button>
         </div>
       </div>
-      <p class="wxrd-hint">夜间：黑底 + 提亮文字；日间：无效；插图同步提亮</p>
+      <p class="wxrd-hint">夜间：统一背景 + 提亮文字；日间：无效；插图同步提亮</p>
     </div>
     <div class="wxrd-panel-section">
       <div class="wxrd-field">
@@ -109,21 +123,23 @@
       </div>
       <button type="button" class="wxrd-reset" data-action="reset-spacing">全部恢复默认</button>
     </div>
-    </div>`;const controls=document.querySelector(".readerControls");controls?.append(button);const wrapper=document.createElement("div");wrapper.className="reader-font-control-panel-wrapper";wrapper.append(panel);controls?.append(wrapper);const closeOnOutside=(event)=>{if(panel.hidden)return;if(panel.contains(event.target)||button.contains(event.target))return;setPanelOpen(false)};const toggleButton=()=>setPanelOpen(panel.hidden);const setPanelOpen=(open)=>{panel.hidden=!open;button.classList.toggle("wxrd-active",open);button.setAttribute("aria-expanded",String(open))};button.addEventListener("click",toggleButton);document.addEventListener("click",closeOnOutside,true);const whiteTextInput=panel.querySelector('input[data-key="whiteText"]');whiteTextInput.addEventListener("change",()=>{settings.set("whiteText",whiteTextInput.checked)});panel.querySelector('.wxrd-segments[data-key="whiteTextBrightness"]')?.addEventListener("click",(event)=>{const value=event.target.closest("button")?.dataset.value;if(!value)return;settings.set("whiteTextBrightness",Number(value))});panel.querySelectorAll('input[type="range"][data-key]').forEach((slider)=>{const key=slider.dataset.key;slider.addEventListener("change",()=>{settings.set(key,Number(slider.value))})});panel.querySelector('[data-action="reset-spacing"]')?.addEventListener("click",()=>{settings.set("whiteText",false).then(()=>settings.set("whiteTextBrightness",1.35)).then(()=>settings.set("lineHeight",null)).then(()=>settings.set("paragraphSpacing",null))});const applyReadingStyles=(config)=>{const whiteText=config.whiteText===true;if(whiteText){const brightness=Number(config.whiteTextBrightness??1.35)||1.35;api.style.inject("wxrd-white-text",`
+    </div>`;const controls=document.querySelector(".readerControls");controls?.append(button);const wrapper=document.createElement("div");wrapper.className="reader-font-control-panel-wrapper";wrapper.append(panel);controls?.append(wrapper);const closeOnOutside=(event)=>{if(panel.hidden)return;if(panel.contains(event.target)||button.contains(event.target))return;setPanelOpen(false)};const toggleButton=()=>setPanelOpen(panel.hidden);const setPanelOpen=(open)=>{panel.hidden=!open;button.classList.toggle("wxrd-active",open);button.setAttribute("aria-expanded",String(open))};button.addEventListener("click",toggleButton);document.addEventListener("click",closeOnOutside,true);const whiteTextInput=panel.querySelector('input[data-key="whiteText"]');whiteTextInput.addEventListener("change",()=>{settings.set("whiteText",whiteTextInput.checked)});const backgroundInput=panel.querySelector('input[type="color"][data-key="whiteTextBackground"]');panel.querySelector('.wxrd-color-options[data-key="whiteTextBackground"]')?.addEventListener("click",(event)=>{const preset=event.target.closest("button[data-background]");if(!preset?.dataset.background||!preset.dataset.brightness)return;settings.set("whiteTextBackground",preset.dataset.background).then(()=>settings.set("whiteTextBrightness",Number(preset.dataset.brightness)))});backgroundInput.addEventListener("change",()=>{settings.set("whiteTextBackground",backgroundInput.value)});panel.querySelector('.wxrd-segments[data-key="whiteTextBrightness"]')?.addEventListener("click",(event)=>{const value=event.target.closest("button")?.dataset.value;if(!value)return;settings.set("whiteTextBrightness",Number(value))});panel.querySelectorAll('input[type="range"][data-key]').forEach((slider)=>{const key=slider.dataset.key;slider.addEventListener("change",()=>{settings.set(key,Number(slider.value))})});panel.querySelector('[data-action="reset-spacing"]')?.addEventListener("click",()=>{settings.set("whiteText",false).then(()=>settings.set("whiteTextBrightness",1.35)).then(()=>settings.set("whiteTextBackground",DEFAULT_READING_BACKGROUND)).then(()=>settings.set("lineHeight",null)).then(()=>settings.set("paragraphSpacing",null))});const applyReadingStyles=(config)=>{const whiteText=config.whiteText===true;if(whiteText){const brightness=Number(config.whiteTextBrightness??1.35)||1.35;const background=normalizeReadingBackground(config.whiteTextBackground);api.style.inject("wxrd-white-text",`
+        body:not(.wr_whiteTheme) .readerContent > .app_content:not(.app_content_in_reader),
+        body:not(.wr_whiteTheme) .wr_horizontalReader_app_content,
         body:not(.wr_whiteTheme) .readerChapterContent,
         body:not(.wr_whiteTheme) .renderTargetContainer,
         body:not(.wr_whiteTheme) .wr_canvasContainer {
-          background-color: #000 !important;
-          border-radius: 16px !important;
+          background-color: ${background} !important;
         }
         body:not(.wr_whiteTheme) .wr_canvasContainer canvas {
           filter: brightness(${brightness}) !important;
         }
+        body.wr_whiteTheme .readerContent > .app_content:not(.app_content_in_reader),
+        body.wr_whiteTheme .wr_horizontalReader_app_content,
         body.wr_whiteTheme .readerChapterContent,
         body.wr_whiteTheme .renderTargetContainer,
         body.wr_whiteTheme .wr_canvasContainer {
           background-color: #fff !important;
-          border-radius: 16px !important;
         }`)}else{api.style.remove("wxrd-white-text")}const lineHeight=config.lineHeight??null;const paragraphSpacing=config.paragraphSpacing??null;if(lineHeight!==null||paragraphSpacing!==null){const lineHeightCss=lineHeight!==null?`line-height: ${lineHeight} !important;`:"";const spacingCss=paragraphSpacing!==null?`margin-bottom: ${paragraphSpacing}em !important;`:"";api.style.inject("wxrd-reading-spacing",`
         ${CONTENT_PARAGRAPH_SELECTOR} {
           ${lineHeightCss}
@@ -132,7 +148,7 @@
         .readerChapterContent .preRenderContent p:last-child,
         .readerChapterContent .renderTargetContent p:last-child {
           margin-bottom: 0 !important;
-        }`);window.dispatchEvent(new Event("resize"))}else{api.style.remove("wxrd-reading-spacing")}syncControls(config)};const syncControls=(config)=>{whiteTextInput.checked=config.whiteText===true;panel.dataset.whiteText=config.whiteText===true?"on":"off";const brightness=String(config.whiteTextBrightness??1.35);const brightnessGroup=panel.querySelector('.wxrd-segments[data-key="whiteTextBrightness"]');brightnessGroup?.querySelectorAll("button").forEach((item)=>{item.classList.toggle("wxrd-selected",item.dataset.value===brightness)});const defaults={lineHeight:DEFAULT_LINE_HEIGHT,paragraphSpacing:DEFAULT_PARAGRAPH_SPACING};panel.querySelectorAll('input[type="range"][data-key]').forEach((slider)=>{const key=slider.dataset.key;const value=config[key]??defaults[key];slider.value=String(value);const output=panel.querySelector(`[data-output="${key}"]`);if(output)output.textContent=key==="paragraphSpacing"?`${value}em`:String(value)})};const unsubscribe=settings.subscribe(applyReadingStyles);applyReadingStyles(settings.getAll());api.style.inject("wxrd-style-panel-ui",PANEL_UI_CSS);return()=>{unsubscribe();button.removeEventListener("click",toggleButton);document.removeEventListener("click",closeOnOutside,true);button.remove();wrapper.remove();api.style.remove("wxrd-style-panel-ui");api.style.remove("wxrd-white-text");api.style.remove("wxrd-reading-spacing")}};var PANEL_UI_CSS=`
+        }`);window.dispatchEvent(new Event("resize"))}else{api.style.remove("wxrd-reading-spacing")}syncControls(config)};const syncControls=(config)=>{whiteTextInput.checked=config.whiteText===true;panel.dataset.whiteText=config.whiteText===true?"on":"off";const brightness=String(config.whiteTextBrightness??1.35);const brightnessGroup=panel.querySelector('.wxrd-segments[data-key="whiteTextBrightness"]');brightnessGroup?.querySelectorAll("button").forEach((item)=>{item.classList.toggle("wxrd-selected",item.dataset.value===brightness)});const background=normalizeReadingBackground(config.whiteTextBackground);backgroundInput.value=background;const backgroundGroup=panel.querySelector('.wxrd-color-options[data-key="whiteTextBackground"]');let matchesPreset=false;backgroundGroup?.querySelectorAll("button[data-background]").forEach((item)=>{const selected=item.dataset.background===background;item.classList.toggle("wxrd-selected",selected);matchesPreset||=selected});backgroundGroup?.querySelector(".wxrd-color-custom")?.classList.toggle("wxrd-selected",!matchesPreset);const defaults={lineHeight:DEFAULT_LINE_HEIGHT,paragraphSpacing:DEFAULT_PARAGRAPH_SPACING};panel.querySelectorAll('input[type="range"][data-key]').forEach((slider)=>{const key=slider.dataset.key;const value=config[key]??defaults[key];slider.value=String(value);const output=panel.querySelector(`[data-output="${key}"]`);if(output)output.textContent=key==="paragraphSpacing"?`${value}em`:String(value)})};const unsubscribe=settings.subscribe(applyReadingStyles);applyReadingStyles(settings.getAll());api.style.inject("wxrd-style-panel-ui",PANEL_UI_CSS);return()=>{unsubscribe();button.removeEventListener("click",toggleButton);document.removeEventListener("click",closeOnOutside,true);button.remove();wrapper.remove();api.style.remove("wxrd-style-panel-ui");api.style.remove("wxrd-white-text");api.style.remove("wxrd-reading-spacing")}};var normalizeReadingBackground=(value)=>{if(typeof value!=="string"||!/^#[0-9a-f]{6}$/i.test(value)){return DEFAULT_READING_BACKGROUND}return value.toLowerCase()};var PANEL_UI_CSS=`
 /* 按钮与面板外壳均由微信读书官方 CSS 生效：
    .readerControls_item（48px 圆钮、主题底色、hover）
    .reader-font-control-panel-wrapper .font-panel-content（absolute 定位、
@@ -225,6 +241,48 @@
   background: rgba(128, 128, 128, .25);
   border-color: rgba(128, 128, 128, .6);
 }
+#wxrd-style-panel .wxrd-color-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+#wxrd-style-panel .wxrd-color-options button,
+#wxrd-style-panel .wxrd-color-custom {
+  min-width: 0;
+  height: 48px;
+  padding: 5px 2px;
+  border: 1px solid rgba(128, 128, 128, .35);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+#wxrd-style-panel .wxrd-color-options button.wxrd-selected,
+#wxrd-style-panel .wxrd-color-custom.wxrd-selected {
+  border-color: currentColor;
+  background: rgba(128, 128, 128, .16);
+}
+#wxrd-style-panel .wxrd-color-swatch,
+#wxrd-style-panel .wxrd-color-custom input {
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 4px;
+}
+#wxrd-style-panel .wxrd-color-custom input {
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
 #wxrd-style-panel .wxrd-hint {
   margin: 10px 0 0;
   font-size: 12px;
@@ -242,7 +300,9 @@
   cursor: pointer;
 }
 #wxrd-style-panel .wxrd-reset:hover { background: rgba(128, 128, 128, .12); }
-#wxrd-style-panel .wxrd-field[data-row="brightness"] { margin-top: 10px; }
+#wxrd-style-panel .wxrd-field[data-row="background"] { margin-top: 12px; }
+#wxrd-style-panel .wxrd-field[data-row="brightness"] { margin-top: 12px; }
+#wxrd-style-panel:not([data-white-text="on"]) .wxrd-field[data-row="background"],
 #wxrd-style-panel:not([data-white-text="on"]) .wxrd-field[data-row="brightness"],
 #wxrd-style-panel:not([data-white-text="on"]) .wxrd-hint {
   display: none;

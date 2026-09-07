@@ -1,14 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { PluginRegistry } from '../plugin_registry';
 import type { ReaderSiteRuntime } from '../reader_site_runtime';
 import { settingsStore, type MergedSettings } from '../settings_store';
 import { SiteContext } from '../site_context';
+import { log } from '../logger';
 import { StyleManager } from '../../managers/style_manager';
 
 const originals = {
   get: settingsStore.get,
   subscribe: settingsStore.subscribe,
   matchMedia: window.matchMedia,
+  tauri: (window as any).__TAURI__,
+  tauriInternals: (window as any).__TAURI_INTERNALS__,
 };
 
 const baseSettings = (partial: Partial<MergedSettings> = {}): MergedSettings => ({
@@ -23,14 +26,17 @@ const baseSettings = (partial: Partial<MergedSettings> = {}): MergedSettings => 
   ...partial,
 });
 
-const createRuntime = (styleOwner: 'manager' | 'plugin' = 'manager') => {
+const createRuntime = (
+  styleOwner: 'manager' | 'plugin' = 'manager',
+  id = 'style-reader',
+) => {
   let doubleColumn = true;
   const runtime = {
-    id: 'style-reader',
+    id,
     name: 'Style Reader',
     styleOwner,
     manifest: {
-      id: 'style-reader',
+      id,
       name: 'Style Reader',
       version: '1.0.0',
       sourceType: 'web',
@@ -65,6 +71,7 @@ describe('StyleManager ownership and cleanup', () => {
   let manager: StyleManager | null = null;
   let settingsListener: ((settings: MergedSettings) => void) | null = null;
   let unsubscribeCalls = 0;
+  let themeInvoke = mock(async () => undefined);
 
   beforeEach(() => {
     document.head.querySelectorAll('style[id^="wxrd-"]').forEach(node => node.remove());
@@ -77,6 +84,17 @@ describe('StyleManager ownership and cleanup', () => {
     };
     settingsListener = null;
     unsubscribeCalls = 0;
+    document.body.classList.remove('wr_whiteTheme');
+    themeInvoke = mock(async () => undefined);
+    (window as any).__TAURI__ = {
+      __currentWindow: { label: 'main' },
+      core: { invoke: themeInvoke },
+      event: { listen: async () => () => undefined },
+    };
+    (window as any).__TAURI_INTERNALS__ = {
+      metadata: { currentWindow: { label: 'main' } },
+      invoke: themeInvoke,
+    };
     window.matchMedia = (() => ({
       matches: true,
       media: '(prefers-color-scheme: dark)',
@@ -95,6 +113,9 @@ describe('StyleManager ownership and cleanup', () => {
     settingsStore.get = originals.get;
     settingsStore.subscribe = originals.subscribe;
     window.matchMedia = originals.matchMedia;
+    (window as any).__TAURI__ = originals.tauri;
+    (window as any).__TAURI_INTERNALS__ = originals.tauriInternals;
+    document.body.classList.remove('wr_whiteTheme');
     SiteContext.getInstance().destroy();
     PluginRegistry.getInstance().clear();
     document.head.querySelectorAll('style[id^="wxrd-"]').forEach(node => node.remove());
@@ -162,6 +183,75 @@ describe('StyleManager ownership and cleanup', () => {
     settingsListener?.(settingsStore.get());
 
     expect(runtime.getWideModeCSS).toHaveBeenLastCalledWith(true, 94);
+  });
+
+  it('follows the WeRead page theme and restores the system theme on destroy', async () => {
+    const { runtime } = createRuntime('manager', 'weread');
+    const registry = PluginRegistry.getInstance();
+    registry.register(runtime);
+    registry.setActivePlugin(runtime.id);
+
+    manager = new StyleManager();
+    expect(themeInvoke).toHaveBeenCalledWith(
+      'plugin:window|set_theme',
+      { label: 'main', value: 'dark' },
+      undefined,
+    );
+
+    document.body.classList.add('wr_whiteTheme');
+    await Bun.sleep(0);
+    expect(themeInvoke).toHaveBeenLastCalledWith(
+      'plugin:window|set_theme',
+      { label: 'main', value: 'light' },
+      undefined,
+    );
+
+    manager.destroy();
+    manager = null;
+    expect(themeInvoke).toHaveBeenLastCalledWith(
+      'plugin:window|set_theme',
+      { label: 'main', value: null },
+      undefined,
+    );
+  });
+
+  it('does not synchronize the native window theme from an iframe', () => {
+    const topDescriptor = Object.getOwnPropertyDescriptor(window, 'top')!;
+    Object.defineProperty(window, 'top', { value: {}, configurable: true });
+    try {
+      const { runtime } = createRuntime('manager', 'weread');
+      const registry = PluginRegistry.getInstance();
+      registry.register(runtime);
+      registry.setActivePlugin(runtime.id);
+      manager = new StyleManager();
+      manager.destroy();
+      manager = null;
+      expect(themeInvoke).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'top', topDescriptor);
+    }
+  });
+
+  it('logs native theme synchronization failures at debug level', async () => {
+    const error = new Error('theme rejected');
+    themeInvoke = mock(async () => { throw error; });
+    (window as any).__TAURI_INTERNALS__.invoke = themeInvoke;
+    const debug = spyOn(log, 'debug').mockImplementation(() => undefined);
+    const { runtime } = createRuntime('manager', 'weread');
+    const registry = PluginRegistry.getInstance();
+    registry.register(runtime);
+    registry.setActivePlugin(runtime.id);
+
+    manager = new StyleManager();
+    await Bun.sleep(0);
+    expect(debug).toHaveBeenCalledWith(
+      '[StyleManager] Failed to sync native window theme',
+      error,
+    );
+    manager.destroy();
+    manager = null;
+    await Bun.sleep(0);
+    debug.mockRestore();
   });
 
   it('removes media, settings and site subscriptions during destroy', () => {

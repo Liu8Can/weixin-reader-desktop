@@ -4,12 +4,20 @@ const root = new URL('../', import.meta.url);
 const readText = (path: string) => Bun.file(new URL(path, root)).text();
 const readJson = <T>(path: string) => Bun.file(new URL(path, root)).json() as Promise<T>;
 
+type PermissionEntry = string | {
+  identifier: string;
+  allow?: Array<Record<string, unknown>>;
+};
+
 type Capability = {
   identifier: string;
   windows: string[];
   remote?: { urls?: string[] };
-  permissions: string[];
+  permissions: PermissionEntry[];
 };
+
+const permissionIdentifier = (permission: PermissionEntry): string =>
+  typeof permission === 'string' ? permission : permission.identifier;
 
 describe('Tauri application contracts', () => {
   it('keeps updater artifacts, signed GitHub endpoints and the runtime updater plugin wired', async () => {
@@ -298,7 +306,9 @@ describe('Tauri application contracts', () => {
 
   it('keeps dangerous native capabilities out of the remote reading window', async () => {
     const capability = await readJson<Capability>('src-tauri/capabilities/main-runtime.json');
-    const commandPermissions = capability.permissions.filter(item => item.startsWith('allow-'));
+    const commandPermissions = capability.permissions
+      .map(permissionIdentifier)
+      .filter(item => item.startsWith('allow-'));
 
     expect(commandPermissions).toEqual([
       'allow-log-to-file',
@@ -318,12 +328,24 @@ describe('Tauri application contracts', () => {
       'allow-save-reading-position',
       'allow-get-runtime-plugin',
     ]);
-    expect(capability.permissions.some(item =>
+    expect(capability.permissions.map(permissionIdentifier).some(item =>
       /(?:fs|shell|updater|dialog|opener|create|install|uninstall|export)/i.test(item)
     )).toBe(false);
     // core: 权限白名单：不允许 allow- 前缀过滤之外的 core 能力静默进入远程窗口
     // （core:default 的 window 部分仅只读查询；新增 core 权限须显式扩展此列表）
-    const corePermissions = capability.permissions.filter(item => item.startsWith('core:'));
-    expect(corePermissions).toEqual(['core:default', 'core:event:default']);
+    const corePermissions = capability.permissions
+      .map(permissionIdentifier)
+      .filter(item => item.startsWith('core:'));
+    expect(corePermissions).toEqual([
+      'core:default',
+      'core:event:default',
+      'core:window:allow-set-theme',
+    ]);
+    expect(capability.permissions.find(item =>
+      permissionIdentifier(item) === 'core:window:allow-set-theme'
+    )).toEqual({
+      identifier: 'core:window:allow-set-theme',
+      allow: [{ label: 'main' }],
+    });
   });
 });

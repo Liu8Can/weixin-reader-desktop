@@ -1,12 +1,12 @@
 # 测试与验收指南
 
-本文描述当前测试体系。最后核对日期：2026-08-03。
+本文描述当前测试体系。最后核对日期：2026-09-07。
 
 ## 当前结果
 
 | 层级 | 结果 | 说明 |
 |---|---:|---|
-| Bun DOM/契约测试 | 272 通过 | 32 个 TypeScript 测试文件，happy-dom + Tauri 静态契约 |
+| Bun DOM/契约测试 | 313 通过 | 39 个 TypeScript 测试文件，happy-dom + Tauri 静态契约 |
 | Rust 单元测试 | 60 通过 | 设置、阅读位置、插件安全、命令边界、启动/菜单/更新与 Tauri mock |
 | Rust 集成测试 | 6 通过 | `src-tauri/tests/plugin_test.rs` |
 | 真机硬件测试 | 1 忽略 | 需要真实 macOS 显示会话 |
@@ -81,6 +81,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked
 | `progress_tracker.test.ts` | 官方进度初始化/重试/切书并发、经验公式、方向防抖、有符号页数、章节校准与跳章降级 |
 | `toast.test.ts` | `textContent` 安全渲染、替换和动画后移除 |
 | `manager_behavior.test.ts` | 滚动参数、翻页阈值、自动翻页进度事件、光标/主题清理 |
+| `weread_style_panel.test.ts` | 阅读宽度默认状态、设置持久化、响应式限制和重置 |
 | `test/tauri_contract.test.ts` | 更新端点、窗口状态、窗口标签和 Capability 最小权限 |
 
 ### 运行方式

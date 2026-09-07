@@ -16,12 +16,17 @@ import type { PluginAPI } from '../core/plugin_types';
 
 type LineHeightChoice = number | null;
 type SpacingChoice = number | null;
+type ReadingWidthChoice = number | null;
 
 /** 微信读书原生行距：官方 CSS 各 fontLevel 行高/字号比值恒定 ≈ 1.9
  *  （18/35、21/40、24/46、28/54、32/61、36/69、42/80，官方 wrwebnjlogic 9.css 实测） */
 const DEFAULT_LINE_HEIGHT = 1.9;
 /** 原生段间距：官方 p 规则 margin-bottom: 1em（相邻段折叠、末段归零） */
 const DEFAULT_PARAGRAPH_SPACING = 1.0;
+const DEFAULT_READING_WIDTH = 1200;
+const MIN_READING_WIDTH = 720;
+const MAX_READING_WIDTH = 1600;
+const READING_WIDTH_STEP = 40;
 
 /** 官方正文段落选择器：测量层 preRenderContent + 渲染层 renderTargetContent 的 p，
  *  canvas 由测量层 DOM 快照而来，两者必须同步改。issue #4 时代的 .content/.quotation
@@ -111,6 +116,10 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     </div>
     <div class="wxrd-panel-section">
       <div class="wxrd-field">
+        <span>阅读宽度 <output data-output="readingWidth"></output></span>
+        <input type="range" data-key="readingWidth" min="720" max="1600" step="40" aria-label="阅读宽度">
+      </div>
+      <div class="wxrd-field">
         <span>行间距 <output data-output="lineHeight"></output></span>
         <input type="range" data-key="lineHeight" min="1.4" max="2.6" step="0.05">
       </div>
@@ -166,6 +175,11 @@ const mountPanel = (api: PluginAPI): (() => void) => {
 
   panel.querySelectorAll<HTMLInputElement>('input[type="range"][data-key]').forEach(slider => {
     const key = slider.dataset.key!;
+    slider.addEventListener('input', () => {
+      if (key !== 'readingWidth') return;
+      const output = panel.querySelector(`[data-output="${key}"]`);
+      if (output) output.textContent = `${slider.value}px`;
+    });
     // change（松手）才写入：微信读书重分页成本高，拖动中不反复触发 resize
     slider.addEventListener('change', () => {
       void settings.set(key, Number(slider.value));
@@ -177,7 +191,8 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     void settings.set('whiteText', false)
       .then(() => settings.set('whiteTextBrightness', 1.35))
       .then(() => settings.set('lineHeight', null))
-      .then(() => settings.set('paragraphSpacing', null));
+      .then(() => settings.set('paragraphSpacing', null))
+      .then(() => settings.set('readingWidth', null));
   });
 
   // ==================== 设置 → 样式（单一控制点） ====================
@@ -207,6 +222,24 @@ const mountPanel = (api: PluginAPI): (() => void) => {
         }`);
     } else {
       api.style.remove('wxrd-white-text');
+    }
+
+    const readingWidth = normalizeReadingWidth(config.readingWidth);
+    if (readingWidth !== null) {
+      const toolbarOffset = readingWidth / 2 + 40;
+      api.style.inject('wxrd-reading-width', `
+        html body .readerTopBar,
+        html body .app_content,
+        html body .readerChapterContent {
+          width: min(${readingWidth}px, calc(100vw - 224px)) !important;
+          max-width: min(${readingWidth}px, calc(100vw - 224px)) !important;
+        }
+        html body:has(.readerControls:not([is-horizontal="true"])) .readerControls {
+          margin-left: min(${toolbarOffset}px, calc(50vw - 72px)) !important;
+        }`);
+      window.dispatchEvent(new Event('resize'));
+    } else {
+      api.style.remove('wxrd-reading-width');
     }
 
     const lineHeight = (config.lineHeight ?? null) as LineHeightChoice;
@@ -248,15 +281,24 @@ const mountPanel = (api: PluginAPI): (() => void) => {
       item.classList.toggle('wxrd-selected', item.dataset.value === brightness);
     });
     const defaults: Record<string, number> = {
+      readingWidth: DEFAULT_READING_WIDTH,
       lineHeight: DEFAULT_LINE_HEIGHT,
       paragraphSpacing: DEFAULT_PARAGRAPH_SPACING,
     };
     panel.querySelectorAll<HTMLInputElement>('input[type="range"][data-key]').forEach(slider => {
       const key = slider.dataset.key!;
-      const value = config[key] ?? defaults[key];
+      const configuredWidth = key === 'readingWidth'
+        ? normalizeReadingWidth(config[key])
+        : null;
+      const value = configuredWidth ?? config[key] ?? defaults[key];
       slider.value = String(value);
       const output = panel.querySelector(`[data-output="${key}"]`);
-      if (output) output.textContent = key === 'paragraphSpacing' ? `${value}em` : String(value);
+      if (!output) return;
+      if (key === 'readingWidth') {
+        output.textContent = configuredWidth === null ? '默认' : `${value}px`;
+      } else {
+        output.textContent = key === 'paragraphSpacing' ? `${value}em` : String(value);
+      }
     });
   };
 
@@ -274,8 +316,17 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     wrapper.remove();
     api.style.remove('wxrd-style-panel-ui');
     api.style.remove('wxrd-white-text');
+    api.style.remove('wxrd-reading-width');
     api.style.remove('wxrd-reading-spacing');
   };
+};
+
+const normalizeReadingWidth = (value: unknown): ReadingWidthChoice => {
+  if (value === null || value === undefined) return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  const stepped = Math.round(numeric / READING_WIDTH_STEP) * READING_WIDTH_STEP;
+  return Math.min(MAX_READING_WIDTH, Math.max(MIN_READING_WIDTH, stepped));
 };
 
 const PANEL_UI_CSS = `

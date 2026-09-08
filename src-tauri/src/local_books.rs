@@ -1046,11 +1046,7 @@ pub fn handle_opened_urls<R: Runtime>(app: &AppHandle<R>, urls: &[tauri::Url]) {
 }
 
 /// Windows/Linux 单实例回调与冷启动参数入口。
-pub fn handle_external_arguments<R: Runtime>(
-    app: &AppHandle<R>,
-    arguments: &[String],
-    cwd: &Path,
-) {
+pub fn handle_external_arguments<R: Runtime>(app: &AppHandle<R>, arguments: &[String], cwd: &Path) {
     let Some(path) = arguments
         .iter()
         .find_map(|argument| book_path_from_argument(argument, cwd))

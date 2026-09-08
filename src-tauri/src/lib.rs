@@ -7,6 +7,7 @@ use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 mod commands;
 mod local_books;
 mod menu;
+mod menu_model;
 pub mod monitor;
 mod plugin_installer;
 pub mod plugin_manager;
@@ -16,22 +17,62 @@ mod sites;
 mod tracker_blocker;
 mod update;
 
-const LIBRARY_PAGE: &str = "library.html";
+const LIBRARY_PAGE_PATH: &str = "/library";
 const LIBRARY_SCHEME: &str = "atreader";
 const LIBRARY_PAGE_HTML: &[u8] = include_bytes!("../../src/windows/library.html");
+const ATRD_LOGO_SVG: &[u8] = include_bytes!("../../atrd-logo.svg");
+const STARTUP_PAGE: &str = "index.html";
+const STARTUP_REVEAL_DELAY_MS: u64 = 320;
+const STARTUP_REVEAL_TIMEOUT_MS: u64 = 15_000;
 
 fn library_protocol_response(path: &str) -> tauri::http::Response<Vec<u8>> {
-    if path == "/library" {
-        tauri::http::Response::builder()
+    match path {
+        LIBRARY_PAGE_PATH => tauri::http::Response::builder()
             .header("content-type", "text/html; charset=utf-8")
             .body(LIBRARY_PAGE_HTML.to_vec())
-            .expect("valid local library response")
-    } else {
-        tauri::http::Response::builder()
+            .expect("valid local library response"),
+        "/atrd-logo.svg" => tauri::http::Response::builder()
+            .header("content-type", "image/svg+xml")
+            .body(ATRD_LOGO_SVG.to_vec())
+            .expect("valid logo response"),
+        _ => tauri::http::Response::builder()
             .status(404)
             .header("content-type", "text/plain; charset=utf-8")
             .body(b"Not Found".to_vec())
-            .expect("valid local error response")
+            .expect("valid local error response"),
+    }
+}
+
+fn reveal_main_window_once<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    revealed: &std::sync::atomic::AtomicBool,
+) {
+    use std::sync::atomic::Ordering;
+
+    if revealed
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return;
+    }
+    let startup = app.get_webview_window("startup");
+    let should_focus = startup
+        .as_ref()
+        .and_then(|window| window.is_focused().ok())
+        .unwrap_or(false);
+    let Some(main) = app.get_webview_window("main") else {
+        revealed.store(false, Ordering::Release);
+        return;
+    };
+    if main.show().is_err() {
+        revealed.store(false, Ordering::Release);
+        return;
+    }
+    if should_focus {
+        let _ = main.set_focus();
+    }
+    if let Some(startup) = startup {
+        let _ = startup.close();
     }
 }
 
@@ -176,6 +217,12 @@ fn library_page_url() -> tauri::Url {
         .expect("valid local library URL")
 }
 
+fn is_library_page_url(url: &tauri::Url) -> bool {
+    let is_local_origin = (url.scheme() == LIBRARY_SCHEME && url.host_str() == Some("localhost"))
+        || (url.scheme() == "http" && url.host_str() == Some("atreader.localhost"));
+    is_local_origin && url.path().trim_end_matches('/') == LIBRARY_PAGE_PATH
+}
+
 #[cfg(not(target_os = "windows"))]
 fn library_page_url() -> tauri::Url {
     "atreader://localhost/library"
@@ -204,9 +251,10 @@ fn navigate_to_enabled_site_when_on_library(app: &tauri::AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
-    let is_on_library = window.url().ok().is_some_and(|current| {
-        current.path().trim_end_matches('/') == LIBRARY_PAGE.trim_end_matches('/')
-    });
+    let is_on_library = window
+        .url()
+        .ok()
+        .is_some_and(|current| is_library_page_url(&current));
     if is_on_library {
         if let Ok(url) = url.parse::<tauri::Url>() {
             let _ = window.navigate(url);
@@ -277,7 +325,7 @@ pub fn run() {
     // 远程阅读页运行期间切换到默认页时，直接由专用本地协议返回编译进二进制的
     // 页面内容，避免再次经 Tauri 前端资产协议请求 library.html。
     builder = builder.register_uri_scheme_protocol(LIBRARY_SCHEME, |context, request| {
-        if request.uri().path() == "/library" {
+        if matches!(request.uri().path(), "/library" | "/atrd-logo.svg") {
             library_protocol_response(request.uri().path())
         } else {
             local_books::protocol_response_with_referer(
@@ -301,7 +349,14 @@ pub fn run() {
         // 后回放并覆盖代码尺寸，导致改码不生效。
         .plugin(
             tauri_plugin_window_state::Builder::default()
-                .with_denylist(&["settings"])
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::SIZE
+                        | tauri_plugin_window_state::StateFlags::POSITION
+                        | tauri_plugin_window_state::StateFlags::MAXIMIZED
+                        | tauri_plugin_window_state::StateFlags::DECORATIONS
+                        | tauri_plugin_window_state::StateFlags::FULLSCREEN,
+                )
+                .with_denylist(&["settings", "startup"])
                 .build(),
         )
         .plugin(tauri_plugin_log::Builder::new().targets([
@@ -353,6 +408,29 @@ pub fn run() {
 
             let app_name = app.config().product_name.clone().unwrap_or("艾特阅读".to_string());
 
+            // 启动页是短生命周期的品牌遮罩；主阅读窗口在后台恢复上次页面，
+            // 页面稳定后再显示，避免用户看到远程站点重定向与本地页面装配过程。
+            WebviewWindowBuilder::new(
+                app,
+                "startup",
+                WebviewUrl::App(STARTUP_PAGE.into()),
+            )
+            .title(&app_name)
+            .inner_size(520.0, 360.0)
+            .center()
+            .resizable(false)
+            .decorations(false)
+            .shadow(true)
+            .skip_taskbar(true)
+            .background_color(Color::from((23, 28, 27)))
+            .build()?;
+
+            let startup_revealed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let navigation_generation =
+                std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let reveal_on_load = startup_revealed.clone();
+            let generation_on_load = navigation_generation.clone();
+
             // IMPORTANT: Single Window Architecture
             // This application uses a single main window (label = "main") for all navigation.
             // DO NOT create additional windows for the same site - this would cause:
@@ -382,12 +460,34 @@ pub fn run() {
                 .inner_size(1280.0, 800.0)
                 .center()
                 .background_color(Color::from((26, 26, 26))) // #1a1a1a 深灰色，减少启动时白屏闪烁
+                .visible(false)
                 // .initialization_script(console_filter_script)  <-- DISABLED
                 .initialization_script(inject_script)
-                .on_page_load(|window, payload| {
+                .on_page_load(move |window, payload| {
+                    if payload.event() == PageLoadEvent::Started {
+                        generation_on_load.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                        menu::disable_reader_menu_items(window.app_handle());
+                        return;
+                    }
                     if payload.event() != PageLoadEvent::Finished {
                         return;
                     }
+                    let finished_generation =
+                        generation_on_load.load(std::sync::atomic::Ordering::Acquire);
+                    let reveal = reveal_on_load.clone();
+                    let generation = generation_on_load.clone();
+                    let reveal_app = window.app_handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(
+                            STARTUP_REVEAL_DELAY_MS,
+                        ))
+                        .await;
+                        if generation.load(std::sync::atomic::Ordering::Acquire)
+                            == finished_generation
+                        {
+                            reveal_main_window_once(&reveal_app, &reveal);
+                        }
+                    });
                     let Some(message) = local_books::take_startup_notice() else {
                         return;
                     };
@@ -400,6 +500,7 @@ pub fn run() {
                 builder = builder.user_agent(ua);
             }
             let win = builder.build()?;
+            menu_model::set_focused_window(None);
 
             // 应用初始缩放（Tauri 2.11/wry 0.55 需要在窗口创建后主动设置）
             // zoom 按站点独立存储，从 sites[lastSiteId].zoom 读取
@@ -440,6 +541,18 @@ pub fn run() {
 
             // Menu Init - AFTER main window is created
             menu::init(app)?;
+
+            // 网络错误或第三方页面永远不发送 Finished 时不能把用户永久困在启动页。
+            // 正常路径通常在数百毫秒到数秒内由上面的稳定窗口提前揭示。
+            let fallback_app = app.handle().clone();
+            let fallback_reveal = startup_revealed.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(
+                    STARTUP_REVEAL_TIMEOUT_MS,
+                ))
+                .await;
+                reveal_main_window_once(&fallback_app, &fallback_reveal);
+            });
 
             // macOS：退出全屏后恢复 WebView 焦点（编程式全屏会丢失 first responder，
             // 导致蓝牙遥控器/键盘后续事件无法派发）
@@ -512,6 +625,8 @@ pub fn run() {
             commands::toggle_stealth,
             commands::toggle_menu_bar,
             commands::simulate_menu_click,
+            commands::set_content_source_enabled,
+            menu::claim_settings_target,
             commands::switch_bookstore_by_index,
             commands::apply_site_zoom,
             commands::get_app_name,
@@ -546,14 +661,20 @@ pub fn run() {
                 }
                 // WindowEvent - monitor for destroyed/close events
                 tauri::RunEvent::WindowEvent { label, event, .. } => {
-                    if matches!(event, tauri::WindowEvent::Destroyed) {
+                    if label == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                         println!("[WindowEvent] Window '{}' destroyed", label);
                         clear_auto_flip_active(app_handle.clone(), "WindowEvent");
                     }
                     // 编辑器窗口获得焦点时显示编辑菜单，失去焦点时隐藏
                     if let tauri::WindowEvent::Focused(focused) = event {
                         if focused {
-                            menu::set_edit_menu_visible(app_handle, label == "plugin-editor");
+                            menu_model::set_focused_window(Some(&label));
+                            menu::set_edit_menu_visible(
+                                app_handle,
+                                label == "plugin-editor" || label == "settings",
+                            );
+                        } else {
+                            menu_model::clear_focused_window_if(&label);
                         }
                     }
                 }
@@ -705,5 +826,29 @@ mod tests {
             "text/html; charset=utf-8"
         );
         assert_eq!(library_protocol_response("/missing").status(), 404);
+
+        let logo = library_protocol_response("/atrd-logo.svg");
+        assert!(logo.status().is_success());
+        assert_eq!(logo.body().as_slice(), ATRD_LOGO_SVG);
+        assert_eq!(logo.headers().get("content-type").unwrap(), "image/svg+xml");
+    }
+
+    #[test]
+    fn library_page_url_detection_accepts_both_platform_protocol_forms() {
+        assert!(is_library_page_url(
+            &"atreader://localhost/library".parse().unwrap()
+        ));
+        assert!(is_library_page_url(
+            &"atreader://localhost/library/".parse().unwrap()
+        ));
+        assert!(is_library_page_url(
+            &"http://atreader.localhost/library".parse().unwrap()
+        ));
+        assert!(!is_library_page_url(
+            &"https://weread.qq.com/library".parse().unwrap()
+        ));
+        assert!(!is_library_page_url(
+            &"atreader://localhost/local-reader".parse().unwrap()
+        ));
     }
 }

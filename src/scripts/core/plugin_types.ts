@@ -477,6 +477,9 @@ export interface ReaderPlugin {
   /** 阅读位置历史导航 */
   back?(): void | Promise<void>;
   forward?(): void | Promise<void>;
+
+  /** 打开阅读样式面板（由站点自行提供实现） */
+  openReadingStyle?(): boolean | void;
   
   /**
    * 获取阅读器专用菜单项 ID

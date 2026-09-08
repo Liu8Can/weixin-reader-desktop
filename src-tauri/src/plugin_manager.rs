@@ -212,7 +212,8 @@ pub fn inspect_install_conflicts(
             kind: "reserved-id".to_string(),
             blocking: true,
             message: if candidate.id == "weread" {
-                "微信读书为内置插件；如已卸载，请在插件管理中点击“恢复”，不能从外部插件包安装。".to_string()
+                "微信读书为内置插件；如已卸载，请在插件管理中点击“恢复”，不能从外部插件包安装。"
+                    .to_string()
             } else {
                 format!(
                     "插件 ID「{}」已由内置插件「{}」使用，请更换插件 ID。",

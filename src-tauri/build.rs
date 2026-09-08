@@ -1,4 +1,6 @@
 fn main() {
+    println!("cargo:rerun-if-changed=../index.html");
+    println!("cargo:rerun-if-changed=../atrd-logo.svg");
     // Tell Cargo to rebuild if inject.js changes
     println!("cargo:rerun-if-changed=../src/scripts/inject.js");
     println!("cargo:rerun-if-changed=../src/scripts/local_reader.js");
@@ -23,6 +25,8 @@ fn main() {
             "toggle_stealth",
             "toggle_menu_bar",
             "simulate_menu_click",
+            "set_content_source_enabled",
+            "claim_settings_target",
             "switch_bookstore_by_index",
             "apply_site_zoom",
             "get_app_name",

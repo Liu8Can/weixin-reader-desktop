@@ -33,3 +33,9 @@ export const resolveLocalKeyboardAction = (
   }
   return null;
 };
+
+/** 应用级 F11 始终可用；正文单键由“阅读快捷键与遥控器”统一控制。 */
+export const shouldHandleLocalKeyboardAction = (
+  action: LocalKeyboardAction,
+  readingShortcutsEnabled: boolean,
+): boolean => readingShortcutsEnabled || action === 'toggle-fullscreen';

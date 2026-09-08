@@ -17,7 +17,7 @@
     "typecheck": "bun scripts/typecheck.ts",
     "test": "bun test",
     "icon:fetch": "bun src/scripts/fetch_plugin_icon.ts",
-    "build": "bun run build:inject && bun run build:local-reader && rm -rf dist && mkdir -p dist && cp index.html dist/ && cp src/windows/*.html dist/ && cp icon.png dist/",
+    "build": "bun run build:inject && bun run build:local-reader && rm -rf dist && mkdir -p dist && cp index.html dist/ && cp src/windows/*.html dist/ && cp icon.png atrd-logo.svg dist/",
     "preview": "vite preview",
     "tauri": "tauri",
     "test:e2e": "python3 e2e/tests/test_reader_features.py",

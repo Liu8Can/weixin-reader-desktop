@@ -217,9 +217,8 @@ body:not([data-theme="dark"]) .tool-button #themeIconDark, body[data-theme="dark
 }
 .loading-layer.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 .loading-layer.error { color: #b9574f; }
-.loading-mark { width: 36px; height: 36px; border: 1px solid var(--accent); border-radius: 50%; position: relative; animation: breathe 1.4s ease-in-out infinite; }
-.loading-mark::after { content: ""; position: absolute; inset: 9px; border: 1px solid var(--accent); border-radius: 50%; }
-.loading-layer.error .loading-mark { animation: none; opacity: .35; }
+.loading-logo { width: 52px; height: 52px; background: var(--accent); -webkit-mask:url('/atrd-logo.svg') center/contain no-repeat; mask:url('/atrd-logo.svg') center/contain no-repeat; filter:drop-shadow(0 10px 22px var(--accent-soft)); animation:breathe 1.8s ease-in-out infinite; }
+.loading-layer.error .loading-logo { animation: none; opacity: .35; }
 .loading-layer p { margin: 0; font-size: 13px; letter-spacing: .06em; }
 @keyframes breathe { 50% { transform: scale(.88); opacity: .48; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

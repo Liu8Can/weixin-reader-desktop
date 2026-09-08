@@ -36,7 +36,8 @@ describe('Tauri application contracts', () => {
 
     expect(source).toContain('tauri_plugin_window_state::Builder::default()');
     // 设置窗口尺寸由 menu.rs 的 inner_size 唯一决定，排除在持久化之外
-    expect(source).toContain('.with_denylist(&["settings"])');
+    expect(source).toContain('.with_denylist(&["settings", "startup"])');
+    expect(source).not.toContain('tauri_plugin_window_state::StateFlags::VISIBLE');
     expect(source).toContain('.max_file_size(2 * 1024 * 1024)');
     expect(source).toContain('RotationStrategy::KeepSome(2)');
   });
@@ -81,7 +82,7 @@ describe('Tauri application contracts', () => {
     const installerScript = installer.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     expect(installerScript).toBeDefined();
     expect(() => new Function(installerScript!)).not.toThrow();
-    expect(settings).toContain("invoke('prepare_plugin_install', { path: file })");
+    expect(settings).toContain("prepare_plugin_install");
     expect(settings).not.toContain("invoke('install_plugin', { path: file })");
     const installerCapability = await readJson<Capability>('src-tauri/capabilities/plugin-installer.json');
     expect(installerCapability.permissions).toContain('core:window:allow-close');
@@ -111,7 +112,26 @@ describe('Tauri application contracts', () => {
 
     expect(config.app.windows).toEqual([]);
     const builders = `${lib}\n${menu}`.matchAll(/WebviewWindowBuilder::new\([^,]+,\s*"([^"]+)"/g);
-    expect([...builders].map(match => match[1])).toEqual(['main', 'settings', 'settings', 'settings']);
+    expect([...builders].map(match => match[1])).toEqual(['startup', 'main', 'settings']);
+    expect(lib).toContain('.visible(false)');
+    expect(lib).toContain('reveal_main_window_once');
+  });
+
+  it('keeps a branded static startup page in front while the hidden main window settles', async () => {
+    const [startup, localReaderPage, packageJson, logo] = await Promise.all([
+      readText('index.html'),
+      readText('src/windows/local-reader.html'),
+      readJson<{ scripts: { build: string } }>('package.json'),
+      readText('atrd-logo.svg'),
+    ]);
+
+    expect(startup).toContain("url('/atrd-logo.svg')");
+    expect(startup).toContain('正在准备阅读空间');
+    expect(startup).not.toContain('TARGET_URL');
+    expect(startup).not.toContain('window.location.href');
+    expect(localReaderPage).toContain('class="loading-logo"');
+    expect(packageJson.scripts.build).toContain('atrd-logo.svg dist/');
+    expect(logo.match(/<path /g)?.length).toBeGreaterThan(1);
   });
 
   it('keeps a static local default page for when every online plugin is disabled', async () => {
@@ -123,27 +143,33 @@ describe('Tauri application contracts', () => {
     ]);
 
     expect(library).toContain('<h1>艾特阅读</h1>');
+    expect(library).toContain("url('/atrd-logo.svg')");
     expect(library).toContain('当前没有已启用的在线插件');
     expect(library).not.toContain('即将');
     expect(library).toContain('color-scheme: dark');
     expect(library).not.toContain('prefers-color-scheme');
+    expect(library).toContain("invoke('simulate_menu_click', { action })");
+    expect(library).toContain("invoke('switch_bookstore_by_index', { index: Number(event.key) })");
     expect(lib).toContain('WebviewUrl::CustomProtocol(library_page_url())');
     expect(lib).toContain('register_uri_scheme_protocol(LIBRARY_SCHEME');
     expect(lib).toContain('LIBRARY_PAGE_HTML.to_vec()');
     expect(lib).toContain('navigate_to_library_when_no_online_site');
     expect(lib).toContain('navigate_to_enabled_site_when_on_library');
+    expect(lib).toContain('is_library_page_url(&current)');
     expect(inject).toContain("['http:', 'https:'].includes(window.location.protocol)");
     expect(buildScript).toContain('cargo:rerun-if-changed=../dist/library.html');
+    expect(buildScript).toContain('cargo:rerun-if-changed=../atrd-logo.svg');
   });
 
   it('marks disabled built-in plugins as removable and restores them without an external package', async () => {
     const settings = await readText('src/windows/settings.html');
 
-    expect(settings).toContain('const enabledPluginIds = Array.isArray(currentSettings?.global?.enabledPlugins)');
-    expect(settings).toContain('...BUILTIN_PLUGINS.map(plugin => ({ ...plugin, enabled: isEnabled(plugin) }))');
-    expect(settings).toContain("makeButton('install', 'restore', '恢复')");
-    expect(settings).toContain("if (action === 'restore')");
-    expect(settings).toContain('await renderPluginList(updatedSettings)');
+    expect(settings).toContain('const builtinPlugins');
+    expect(settings).toContain('enabled:isEnabled(plugin,ids)');
+    expect(settings).toContain('已停用');
+    expect(settings).toContain('togglePlugin');
+    expect(settings).toContain("invoke('set_content_source_enabled'");
+    expect(settings).not.toContain('patchSettings({global:{enabledPlugins:next}})');
   });
 
   it('scopes each capability to its intended window and remote pages only to main', async () => {
@@ -187,14 +213,13 @@ describe('Tauri application contracts', () => {
     ]);
 
     expect(config.bundle.fileAssociations.flatMap(item => item.ext)).toEqual(['atrd', 'epub']);
-    expect(menu).toContain('Submenu::new(manager, "自家书屋", true)');
+    expect(menu).toContain('menu_id::RECENT');
     expect(menu).toContain('"打开本地图书…"');
     expect(menu).toContain('open_local_book_');
-    expect(settings).toContain('<div class="section-title" style="margin-top: 32px;">本地书屋</div>');
-    expect(settings).toContain('<div class="setting-label">本地书屋历史</div>');
-    expect(settings).toContain('<div class="setting-desc">清除本地书屋里的阅读历史记录</div>');
-    expect(settings).toContain('msg.textContent = \'清除本地书屋里的阅读历史记录\'');
-    expect(settings).toContain('id="clearLocalHistoryBtn">清空历史记录</button>');
+    expect(settings).toContain('本地阅读数据');
+    expect(settings).toContain('清除本地阅读记录');
+    expect(settings).toContain('原始 TXT/EPUB 文件不会被删除');
+    expect(settings).toContain('id="clearLocalHistoryBtn"');
     expect(localPage.match(/class="tool-button"/g)).toHaveLength(4);
     expect(localPage).toContain('id="pageProgress"');
     expect(localCapability.remote).toBeUndefined();
@@ -209,6 +234,65 @@ describe('Tauri application contracts', () => {
     const settingsScript = settings.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     expect(settingsScript).toBeDefined();
     expect(() => new Function(settingsScript!)).not.toThrow();
+  });
+
+  it('keeps menu actions stable, nested and bounded across native and web runtimes', async () => {
+    const [menu, model, commands, inject, localReader] = await Promise.all([
+      readText('src-tauri/src/menu.rs'),
+      readText('src-tauri/src/menu_model.rs'),
+      readText('src-tauri/src/commands.rs'),
+      readText('src/scripts/inject.ts'),
+      readText('src/local-reader/index.ts'),
+    ]);
+
+    for (const id of ['menu_file', 'menu_reading', 'menu_go', 'menu_view', 'menu_window', 'menu_help']) {
+      expect(model).toContain(`"${id}"`);
+    }
+    expect(menu).toContain('fn build_app_menu');
+    expect(menu).toContain('build_recent_books_menu(handle, &settings_data)');
+    expect(menu).toContain('disable_reader_items(&top_items)');
+    expect(menu).toContain('is_reader_action_enabled(id)');
+    expect(menu).toContain('reader_action_supported(app, &url, id)');
+    expect(menu).toContain('.min_inner_size(760.0, 560.0)');
+    expect(commands).toContain('for_each_menu_item');
+    expect(commands).toContain('is_simulated_action');
+    expect(commands).toContain('window.label() != "main" || !crate::menu_model::is_main_window_focused()');
+    const simulatedActions = model.match(/SIMULATED_ACTION_IDS:[\s\S]*?= &\[([\s\S]*?)\];/)?.[1];
+    expect(simulatedActions).toBeDefined();
+    expect(simulatedActions).not.toContain('"install_update_now"');
+    expect(menu).toContain('Some("CmdOrCtrl+Shift+O")');
+    expect(menu).toContain('Some("CmdOrCtrl+O")');
+    expect(inject).toContain("'o': 'hide_toolbar'");
+    expect(inject).toContain("? 'open_local_book'");
+    expect(inject).not.toContain("'p': 'hide_navbar'");
+    expect(localReader).toContain("o: 'hide_toolbar'");
+    expect(localReader).toContain("? 'open_local_book'");
+    expect(localReader).not.toContain("p: 'hide_navbar'");
+  });
+
+  it('uses monotonic settings snapshots, atomic source intent and claimable hot deep-links', async () => {
+    const [settingsPage, settingsCapability, menu, settings] = await Promise.all([
+      readText('src/windows/settings.html'),
+      readJson<Capability>('src-tauri/capabilities/settings.json'),
+      readText('src-tauri/src/menu.rs'),
+      readText('src-tauri/src/settings.rs'),
+    ]);
+
+    expect(settingsPage).toContain('next._version >= documentState._version');
+    expect(settingsPage).toContain("invoke('set_content_source_enabled'");
+    expect(settingsPage).toContain("invoke('claim_settings_target')");
+    expect(settingsPage).toContain("listen('plugins-updated',()=>refreshPluginsFromRepository())");
+    expect(settingsPage.match(/class="nav-icon"/g)).toHaveLength(5);
+    expect(settingsPage).toContain('class="search-icon"');
+    expect(settingsPage).toContain("mask:url('atrd-logo.svg')");
+    expect(settingsPage).not.toContain("background:url('icon.png')");
+    expect(settingsPage).not.toContain('OUT OF OR IN CONNECTION WITH THE SOFTWARE');
+    expect(settingsPage).not.toContain('class="license-copy"');
+    expect(menu).toContain('PENDING_SETTINGS_TARGET');
+    expect(menu).toContain('pending.take()');
+    expect(settings).toContain('set_enabled_source_path');
+    expect(settingsCapability.permissions).toContain('allow-set-content-source-enabled');
+    expect(settingsCapability.permissions).toContain('allow-claim-settings-target');
   });
 
   it('keeps dangerous native capabilities out of the remote reading window', async () => {

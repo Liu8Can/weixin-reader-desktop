@@ -367,6 +367,9 @@ export const Events = {
   /** 翻页方向（用于章节切换时的方向判断） */
   PAGE_TURN_DIRECTION: 'wxrd:page-turn-direction',
 
+  /** 原生菜单发起的阅读器动作（翻页/章节导航） */
+  READER_COMMAND: 'reader:command',
+
   // ========== 样式相关 ==========
   /** 双栏模式状态变化 */
   DOUBLE_COLUMN_CHANGED: 'wxrd:double-column-changed',

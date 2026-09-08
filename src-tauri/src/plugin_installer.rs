@@ -284,8 +284,6 @@ pub async fn confirm_pending_plugin_install(
             *pending = None;
         }
     }
-    let _ = app.emit("plugins-updated", ());
-    commands::refresh_app_menu(&app);
     Ok(installed)
 }
 

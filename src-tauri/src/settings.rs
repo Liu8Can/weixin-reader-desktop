@@ -210,6 +210,47 @@ impl SettingsRepository {
         atomic_write(path, &current)?;
         Ok(current)
     }
+
+    fn set_enabled_source_path(
+        path: &Path,
+        source_id: &str,
+        enabled: bool,
+        default_source_ids: &[String],
+    ) -> Result<Value, String> {
+        let _guard = SETTINGS_LOCK
+            .lock()
+            .map_err(|_| "Settings lock poisoned".to_string())?;
+        let mut current = read_or_reset_locked(path)?;
+        let global = current
+            .get_mut("global")
+            .and_then(Value::as_object_mut)
+            .ok_or("Settings global section is invalid")?;
+        let mut ids: Vec<String> = global
+            .get("enabledPlugins")
+            .and_then(Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_else(|| default_source_ids.to_vec());
+        ids.retain(|id| id != source_id);
+        if enabled {
+            ids.push(source_id.to_string());
+        }
+        global.insert("enabledPlugins".to_string(), json!(ids));
+        let version = current
+            .get("_version")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or("Settings version overflow")?;
+        current["_version"] = json!(version);
+        atomic_write(path, &current)?;
+        Ok(current)
+    }
 }
 
 pub fn read_settings<R: Runtime>(app: &AppHandle<R>) -> Result<Value, String> {
@@ -280,6 +321,23 @@ pub fn update_setting<R: Runtime>(
 ) -> Result<Value, String> {
     let current = SettingsRepository::update_path(&get_settings_path(app), path, value)?;
     let _ = app.emit("settings-updated", &current);
+    Ok(current)
+}
+
+pub fn set_content_source_enabled<R: Runtime>(
+    app: &AppHandle<R>,
+    source_id: &str,
+    enabled: bool,
+    default_source_ids: &[String],
+) -> Result<Value, String> {
+    let current = SettingsRepository::set_enabled_source_path(
+        &get_settings_path(app),
+        source_id,
+        enabled,
+        default_source_ids,
+    )?;
+    let _ = app.emit("settings-updated", &current);
+    let _ = app.emit("plugins-updated", ());
     Ok(current)
 }
 
@@ -547,6 +605,29 @@ mod tests {
         assert_eq!(updated["global"]["autoFlip"]["active"], true);
         assert_eq!(updated["global"]["autoFlip"]["interval"], 15);
         assert_eq!(updated["_version"], 2);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn source_toggle_transforms_latest_enabled_set_without_replacing_unrelated_ids() {
+        let path = temporary_settings_path("source-toggle");
+        let defaults = vec!["weread".to_string(), "fanqie".to_string()];
+        let first =
+            SettingsRepository::set_enabled_source_path(&path, "weread", false, &defaults).unwrap();
+        assert_eq!(first["global"]["enabledPlugins"], json!(["fanqie"]));
+
+        SettingsRepository::update_path(
+            &path,
+            "global.enabledPlugins",
+            json!(["fanqie", "concurrently-installed"]),
+        )
+        .unwrap();
+        let second =
+            SettingsRepository::set_enabled_source_path(&path, "weread", true, &defaults).unwrap();
+        assert_eq!(
+            second["global"]["enabledPlugins"],
+            json!(["fanqie", "concurrently-installed", "weread"])
+        );
         cleanup(&path);
     }
 

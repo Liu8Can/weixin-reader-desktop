@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { resolveLocalKeyboardAction } from './keyboard';
+import { resolveLocalKeyboardAction, shouldHandleLocalKeyboardAction } from './keyboard';
 
 describe('本地阅读键盘回退控制', () => {
   it('不依赖蓝牙遥控器开关即可映射阅读键', () => {
@@ -29,5 +29,11 @@ describe('本地阅读键盘回退控制', () => {
   it('只在 Windows 接管 F11', () => {
     expect(resolveLocalKeyboardAction('F11', true)).toBe('toggle-fullscreen');
     expect(resolveLocalKeyboardAction('F11', false)).toBeNull();
+  });
+
+  it('关闭阅读快捷键时禁用正文单键，但保留应用级 F11', () => {
+    expect(shouldHandleLocalKeyboardAction('next-page', false)).toBe(false);
+    expect(shouldHandleLocalKeyboardAction('previous-chapter', false)).toBe(false);
+    expect(shouldHandleLocalKeyboardAction('toggle-fullscreen', false)).toBe(true);
   });
 });

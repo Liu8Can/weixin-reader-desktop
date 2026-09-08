@@ -9,6 +9,7 @@ export interface LocalReaderController {
   prevPage(): void | Promise<void>;
   nextChapter(): boolean | Promise<boolean>;
   prevChapter(): boolean | Promise<boolean>;
+  openReadingStyle(): boolean;
   back(): void | Promise<void>;
   forward(): void | Promise<void>;
   getChapters(): Promise<Chapter[]>;

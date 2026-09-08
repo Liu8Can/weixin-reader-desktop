@@ -1,6 +1,7 @@
 import manifest from '../../plugins/builtin/weread/manifest.json';
 import { WeReadAdapter } from '../adapters/weread_adapter';
 import { setupStylePanel } from '../adapters/weread_style_panel';
+import { chapterManager } from './chapter_manager';
 import type {
   BookProgress,
   PluginAPI,
@@ -31,6 +32,11 @@ export interface ReaderSiteRuntime extends ReaderPlugin {
   nextChapter?(): boolean | Promise<boolean>;
   back?(): void | Promise<void>;
   forward?(): void | Promise<void>;
+  openReadingStyle?(): boolean | void;
+  canOpenReadingStyle?(): boolean;
+  canNavigateChapter?(): boolean;
+  canNavigatePreviousChapter?(): boolean;
+  canNavigateNextChapter?(): boolean;
 }
 
 class WeReadSiteRuntime implements ReaderSiteRuntime {
@@ -80,6 +86,32 @@ class WeReadSiteRuntime implements ReaderSiteRuntime {
 
   nextPage(): void | Promise<void> {
     return this.getAdapter().nextPage();
+  }
+
+  openReadingStyle(): boolean {
+    const button = document.getElementById('wxrd-style-button') as HTMLButtonElement | null;
+    if (!button) return false;
+    const panel = document.getElementById('wxrd-style-panel') as HTMLElement | null;
+    if (!panel || panel.hidden) button.click();
+    return true;
+  }
+
+  canOpenReadingStyle(): boolean { return true; }
+  canNavigateChapter(): boolean { return chapterManager.isInitialized(); }
+  private currentChapterPosition(): number {
+    const match = window.location.pathname.match(/\/web\/reader\/([^?#]+)/);
+    const fullPath = match?.[1];
+    const marker = fullPath?.indexOf('k') ?? -1;
+    if (!fullPath || marker <= 0) return -1;
+    const segment = fullPath.slice(marker);
+    return chapterManager.getChapters().findIndex(
+      chapter => chapterManager.getChapterUrlSegment(chapter.chapterIdx) === segment,
+    );
+  }
+  canNavigatePreviousChapter(): boolean { return this.currentChapterPosition() > 0; }
+  canNavigateNextChapter(): boolean {
+    const position = this.currentChapterPosition();
+    return position >= 0 && position < chapterManager.getChapters().length - 1;
   }
 
   prevPage(): void | Promise<void> {
@@ -178,10 +210,51 @@ class PluginSiteRuntime implements ReaderSiteRuntime {
   getChapterUrl(chapterIdx: number): string | null {
     return this.plugin.getChapterUrl?.(chapterIdx) ?? null;
   }
-  prevChapter(): boolean | Promise<boolean> { return this.plugin.prevChapter?.() ?? false; }
-  nextChapter(): boolean | Promise<boolean> { return this.plugin.nextChapter?.() ?? false; }
+  prevChapter(): boolean | Promise<boolean> {
+    if (this.effectiveManifest.capabilities.chapterNav === false) return false;
+    if (this.plugin.prevChapter) return this.plugin.prevChapter();
+    if (this.effectiveManifest.capabilities.chapterNav !== true) return false;
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowUp',
+      code: 'ArrowUp',
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, '__atreaderMenuChapterNavigation', { value: true });
+    document.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+  nextChapter(): boolean | Promise<boolean> {
+    if (this.effectiveManifest.capabilities.chapterNav === false) return false;
+    if (this.plugin.nextChapter) return this.plugin.nextChapter();
+    if (this.effectiveManifest.capabilities.chapterNav !== true) return false;
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      code: 'ArrowDown',
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, '__atreaderMenuChapterNavigation', { value: true });
+    document.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
   back(): void | Promise<void> { return this.plugin.back?.(); }
   forward(): void | Promise<void> { return this.plugin.forward?.(); }
+  openReadingStyle(): boolean | void { return this.plugin.openReadingStyle?.(); }
+  canOpenReadingStyle(): boolean { return typeof this.plugin.openReadingStyle === 'function'; }
+  canNavigateChapter(): boolean {
+    return this.canNavigatePreviousChapter() || this.canNavigateNextChapter();
+  }
+  canNavigatePreviousChapter(): boolean {
+    const declared = this.effectiveManifest.capabilities.chapterNav;
+    if (declared === false) return false;
+    return declared === true || typeof this.plugin.prevChapter === 'function';
+  }
+  canNavigateNextChapter(): boolean {
+    const declared = this.effectiveManifest.capabilities.chapterNav;
+    if (declared === false) return false;
+    return declared === true || typeof this.plugin.nextChapter === 'function';
+  }
   getReaderMenuItems(): string[] {
     return this.plugin.getReaderMenuItems?.() ?? ['reader_wide', 'hide_toolbar', 'auto_flip'];
   }

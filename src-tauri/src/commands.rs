@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
+use tauri::{menu::MenuItemKind, AppHandle, Emitter, Manager, Runtime, WebviewWindow};
 
 /// 摸鱼模式状态：true = 当前隐藏中
 static STEALTH_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -13,68 +13,128 @@ pub fn log_to_file(_app: AppHandle, message: String) {
 }
 
 #[tauri::command]
-pub fn update_menu_state(app: AppHandle, id: String, state: bool) {
+pub fn update_menu_state(
+    app: AppHandle,
+    window: WebviewWindow,
+    id: String,
+    state: bool,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("只有主阅读窗口可以更新菜单状态".to_string());
+    }
+    if !crate::menu_model::is_menu_state_id(&id) {
+        return Err(format!("不允许更新菜单状态：{id}"));
+    }
+    if state && crate::menu_model::is_reader_action(&id) {
+        let url = window
+            .url()
+            .map_err(|error| format!("无法读取主窗口地址：{error}"))?;
+        if !crate::sites::reader_action_supported(&app, &url, &id) {
+            return Err(format!("当前页面不能勾选菜单动作：{id}"));
+        }
+    }
     if let Some(menu) = app.menu() {
         if let Ok(items) = menu.items() {
-            // Item 1 is the View submenu
-            if let Some(view_submenu) = items.get(1).and_then(|i| i.as_submenu()) {
-                if let Ok(sub_items) = view_submenu.items() {
-                    for sub_item in sub_items.iter() {
-                        if sub_item.id() == id.as_str() {
-                            if let Some(check_item) = sub_item.as_check_menuitem() {
-                                let _ = check_item.set_checked(state);
-                                return;
-                            }
-                        }
-                    }
+            for_each_menu_item(&items, &id, &mut |item| {
+                if let Some(check_item) = item.as_check_menuitem() {
+                    let _ = check_item.set_checked(state);
                 }
+            });
+        }
+    }
+    Ok(())
+}
+
+/// 在完整菜单树中按稳定 ID 查找项目。
+///
+/// 菜单一级顺序在 macOS、Windows/Linux 以及编辑菜单动态插入时不同，
+/// 因此所有状态同步都必须递归查找，不能依赖数组下标或显示文案。
+fn for_each_menu_item<R: Runtime>(
+    items: &[MenuItemKind<R>],
+    id: &str,
+    callback: &mut impl FnMut(&MenuItemKind<R>),
+) {
+    for item in items {
+        if item.id().as_ref() == id {
+            callback(item);
+        }
+        if let Some(submenu) = item.as_submenu() {
+            if let Ok(children) = submenu.items() {
+                for_each_menu_item(&children, id, callback);
+            }
+        }
+    }
+}
+
+fn set_source_checks<R: Runtime>(
+    items: &[MenuItemKind<R>],
+    target: &tauri::menu::MenuId,
+    found: &mut usize,
+) {
+    for item in items {
+        if let Some(check) = item.as_check_menuitem() {
+            let _ = check.set_checked(*item.id() == *target);
+            *found += 1;
+        }
+        if let Some(submenu) = item.as_submenu() {
+            if let Ok(children) = submenu.items() {
+                set_source_checks(&children, target, found);
             }
         }
     }
 }
 
 #[tauri::command]
-pub fn set_menu_item_enabled(app: AppHandle, id: String, enabled: bool) {
+pub fn set_menu_item_enabled(
+    app: AppHandle,
+    window: WebviewWindow,
+    id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("只有主阅读窗口可以更新菜单可用性".to_string());
+    }
+    if !crate::menu_model::is_menu_state_id(&id) {
+        return Err(format!("不允许更新菜单可用性：{id}"));
+    }
+    if enabled && crate::menu_model::is_reader_action(&id) {
+        let url = window
+            .url()
+            .map_err(|error| format!("无法读取主窗口地址：{error}"))?;
+        if !crate::sites::reader_action_supported(&app, &url, &id) {
+            return Err(format!("非阅读页面不能启用菜单动作：{id}"));
+        }
+    }
+    crate::menu_model::set_reader_action_enabled(&id, enabled);
     let mut found = false;
     if let Some(menu) = app.menu() {
         if let Ok(items) = menu.items() {
-            for menu_item in items.iter() {
-                if let Some(submenu) = menu_item.as_submenu() {
-                    if let Ok(sub_items) = submenu.items() {
-                        for sub_item in sub_items.iter() {
-                            if sub_item.id() == id.as_str() {
-                                if let Some(check_item) = sub_item.as_check_menuitem() {
-                                    let _ = check_item.set_enabled(enabled);
-                                } else if let Some(menu_item_inner) = sub_item.as_menuitem() {
-                                    let _ = menu_item_inner.set_enabled(enabled);
-                                } else if let Some(sub) = sub_item.as_submenu() {
-                                    let _ = sub.set_enabled(enabled);
-                                }
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    if found {
-                        break;
-                    }
+            for_each_menu_item(&items, &id, &mut |item| {
+                if let Some(check_item) = item.as_check_menuitem() {
+                    let _ = check_item.set_enabled(enabled);
+                } else if let Some(menu_item_inner) = item.as_menuitem() {
+                    let _ = menu_item_inner.set_enabled(enabled);
+                } else if let Some(sub) = item.as_submenu() {
+                    let _ = sub.set_enabled(enabled);
                 }
-            }
+                found = true;
+            });
         }
     }
 
-    if !found {
+    if !found && id != "hide_cursor" {
         eprintln!(
             "[Menu] set_menu_item_enabled: NOT FOUND - id={}, enabled={}",
             id, enabled
         );
     }
+    Ok(())
 }
 
 /// 设置当前活跃书店（书店菜单单选对勾）
 /// 找到「书店」子菜单，将 site_id 对应项勾上、其余取消
 #[tauri::command]
-pub fn set_active_bookstore(app: AppHandle, site_id: String) {
+pub fn set_active_bookstore<R: Runtime>(app: AppHandle<R>, site_id: String) {
     println!(
         "[Bookstore] set_active_bookstore called: site_id={}",
         site_id
@@ -83,27 +143,16 @@ pub fn set_active_bookstore(app: AppHandle, site_id: String) {
     let mut found_menus = 0;
     if let Some(menu) = app.menu() {
         if let Ok(items) = menu.items() {
-            for top in items.iter() {
-                if let Some(submenu) = top.as_submenu() {
-                    // 通过标题识别书店子菜单
-                    if submenu.text().map(|t| t == "书店").unwrap_or(false) {
-                        found_menus += 1;
-                        if let Ok(sub_items) = submenu.items() {
-                            for it in sub_items.iter() {
-                                if let Some(check) = it.as_check_menuitem() {
-                                    let want = *it.id() == target;
-                                    let _ = check.set_checked(want);
-                                    println!(
-                                        "[Bookstore]   item={} -> checked={}",
-                                        it.id().0,
-                                        want
-                                    );
-                                }
-                            }
-                        }
+            // The source submenu itself has a stable ID after the menu refactor.
+            // Its children are intentionally traversed recursively for future
+            // nested source groups.
+            for_each_menu_item(&items, crate::menu_model::id::SOURCES, &mut |item| {
+                if let Some(sources) = item.as_submenu() {
+                    if let Ok(children) = sources.items() {
+                        set_source_checks(&children, &target, &mut found_menus);
                     }
                 }
-            }
+            });
         }
     }
     println!("[Bookstore] done, 书店 submenus found={}", found_menus);
@@ -144,6 +193,11 @@ pub fn toggle_stealth<R: Runtime>(app: AppHandle<R>) {
 #[cfg(target_os = "windows")]
 static MENU_HIDDEN: AtomicBool = AtomicBool::new(false);
 
+#[cfg(target_os = "windows")]
+pub fn is_menu_bar_visible() -> bool {
+    !MENU_HIDDEN.load(Ordering::SeqCst)
+}
+
 #[tauri::command]
 pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
     #[cfg(target_os = "windows")]
@@ -155,8 +209,10 @@ pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
         if was_hidden {
             let _ = win.show_menu();
             MENU_HIDDEN.store(false, Ordering::SeqCst);
+            crate::menu::set_menu_check_state(&app, "toggle_menu", true);
         } else {
             let _ = win.hide_menu();
+            crate::menu::set_menu_check_state(&app, "toggle_menu", false);
         }
     }
     // 非 Windows 平台：空操作（macOS/Linux 菜单行为不同，不需要隐藏）
@@ -168,8 +224,9 @@ pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
 /// 全屏自动隐藏菜单时标记为 hidden，退出全屏自动恢复时标记为 visible，
 /// 确保 toggle_menu_bar 的原子状态与实际菜单状态一致。
 #[cfg(target_os = "windows")]
-pub fn sync_menu_hidden_for_fullscreen(hidden: bool) {
+pub fn sync_menu_hidden_for_fullscreen<R: Runtime>(app: &AppHandle<R>, hidden: bool) {
     MENU_HIDDEN.store(hidden, Ordering::SeqCst);
+    crate::menu::set_menu_check_state(app, "toggle_menu", !hidden);
 }
 
 /// 模拟菜单点击（Windows"瞒天过海"快捷键方案）
@@ -179,13 +236,30 @@ pub fn sync_menu_hidden_for_fullscreen(hidden: bool) {
 /// 调用此命令，复用菜单点击逻辑，用户感知不到差异。
 /// macOS 上菜单 accelerator 正常工作，此命令仅供前端模拟调用。
 #[tauri::command]
-pub fn simulate_menu_click<R: Runtime>(app: AppHandle<R>, action: String) {
-    crate::menu::handle_menu_action(&app, &action);
+pub fn simulate_menu_click<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow<R>,
+    action: String,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("只有主窗口可以模拟应用菜单动作".to_string());
+    }
+    if !crate::menu_model::is_simulated_action(&action) {
+        return Err(format!("不允许模拟菜单动作：{action}"));
+    }
+    crate::menu::handle_menu_action(&app, &action)
 }
 
 /// 书店快捷键：按序号切换书店（1=微信读书，2=第一个插件站点，依此类推）
 #[tauri::command]
-pub fn switch_bookstore_by_index<R: Runtime>(app: AppHandle<R>, index: u8) {
+pub fn switch_bookstore_by_index<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow<R>,
+    index: u8,
+) -> Result<(), String> {
+    if window.label() != "main" || !crate::menu_model::is_main_window_focused() {
+        return Err("只有聚焦的主窗口可以切换阅读来源".to_string());
+    }
     let settings = crate::settings::read_settings(&app)
         .unwrap_or_else(|_| crate::settings::default_settings());
     let mut site_ids = Vec::new();
@@ -205,6 +279,7 @@ pub fn switch_bookstore_by_index<R: Runtime>(app: AppHandle<R>, index: u8) {
             crate::menu::switch_to_site(&app, site_id);
         }
     }
+    Ok(())
 }
 
 /// 前端注入脚本初始化完成时调用，通知 Rust 端按当前站点应用缩放
@@ -240,39 +315,57 @@ pub fn get_app_version<R: Runtime>(app: AppHandle<R>) -> String {
 
 use crate::plugin_manager;
 
-/// 插件变更后重建应用菜单（使「书店」菜单随外部插件增减即时出现/消失）
-/// rebuild_full_menu 仅在 macOS/Windows 存在，其它平台为空操作
+/// 插件、来源或最近图书变化后重建统一应用菜单。
 pub(crate) fn refresh_app_menu<R: Runtime>(app: &AppHandle<R>) {
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    {
-        if let Err(e) = crate::menu::rebuild_full_menu(app) {
-            eprintln!("[Menu] Failed to rebuild menu after plugin change: {:?}", e);
-        }
+    if let Err(e) = crate::menu::rebuild_full_menu(app) {
+        eprintln!("[Menu] Failed to rebuild menu after plugin change: {:?}", e);
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    let _ = app;
 }
 
 pub(crate) fn enable_plugin_in_settings(app: &AppHandle, plugin_id: &str) -> Result<(), String> {
-    let settings = crate::settings::read_settings(app)?;
-    let Some(enabled) = settings
-        .get("global")
-        .and_then(|global| global.get("enabledPlugins"))
-        .and_then(serde_json::Value::as_array)
-    else {
-        // 列表缺省表示所有插件启用，保持向后兼容。
-        return Ok(());
-    };
-    if enabled
-        .iter()
-        .any(|value| value.as_str() == Some(plugin_id))
-    {
-        return Ok(());
+    let mut source_ids = vec![crate::sites::WEREAD.id.to_string()];
+    if let Ok(plugins) = crate::plugin_manager::get_installed_plugins(app) {
+        source_ids.extend(
+            plugins
+                .into_iter()
+                .filter(|plugin| plugin.site.is_some())
+                .map(|plugin| plugin.id),
+        );
     }
-    let mut next = enabled.clone();
-    next.push(serde_json::Value::String(plugin_id.to_string()));
-    crate::settings::update_setting(app, "global.enabledPlugins", serde_json::Value::Array(next))?;
+    if !source_ids.iter().any(|id| id == plugin_id) {
+        source_ids.push(plugin_id.to_string());
+    }
+    crate::settings::set_content_source_enabled(app, plugin_id, true, &source_ids)?;
     Ok(())
+}
+
+/// 设置页按单一来源意图启停。读最新文档、变换集合、写回在同一把锁内完成，
+/// 不接受前端提交整份 enabledPlugins，避免与并发安装互相覆盖。
+#[tauri::command]
+pub fn set_content_source_enabled(
+    app: AppHandle,
+    window: WebviewWindow,
+    source_id: String,
+    enabled: bool,
+) -> Result<serde_json::Value, String> {
+    if window.label() != "settings" {
+        return Err("只有设置窗口可以管理内容来源".to_string());
+    }
+    let mut source_ids = vec![crate::sites::WEREAD.id.to_string()];
+    if let Ok(plugins) = crate::plugin_manager::get_installed_plugins(&app) {
+        source_ids.extend(
+            plugins
+                .into_iter()
+                .filter(|plugin| plugin.site.is_some())
+                .map(|plugin| plugin.id),
+        );
+    }
+    source_ids.sort();
+    source_ids.dedup();
+    if !source_ids.iter().any(|id| id == &source_id) {
+        return Err(format!("未知的在线来源：{source_id}"));
+    }
+    crate::settings::set_content_source_enabled(&app, &source_id, enabled, &source_ids)
 }
 
 /// 安装插件
@@ -331,10 +424,6 @@ pub async fn install_plugin(
         "[Plugin] Plugin installed: {} v{}",
         result.id, result.version
     );
-
-    // 触发设置更新事件，通知前端
-    let _ = app.emit("plugins-updated", ());
-    refresh_app_menu(&app);
 
     Ok(result)
 }
@@ -745,10 +834,6 @@ pub async fn install_plugin_from_editor(
     }
     plugin_manager::replace_plugin_directory(&staging, &plugin_dir, &backup)?;
     enable_plugin_in_settings(&app, &info.id)?;
-
-    // 触发插件更新事件
-    let _ = app.emit("plugins-updated", ());
-    refresh_app_menu(&app);
 
     println!(
         "[PluginEditor] Plugin installed: {} v{}",

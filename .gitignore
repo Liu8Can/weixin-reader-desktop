@@ -21,6 +21,8 @@ src-tauri/target/
 macos/
 tasks/
 tmp/
+todo/
+audit/
 
 # Logs
 logs

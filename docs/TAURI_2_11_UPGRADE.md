@@ -323,7 +323,7 @@ macOS 不受影响——WKWebView 不拦截这些键，Cmd 系列快捷键走系
 | Ctrl+9 | reader_wide | |
 | Ctrl+8 | hide_cursor | |
 | Ctrl+O | hide_toolbar | preventDefault 拦住 WebView2 的打开文件对话框 |
-| Ctrl+P | hide_navbar | preventDefault 拦住 WebView2 的打印对话框 |
+| Ctrl+Shift+O | open_local_book | 打开本地图书，避免占用既有的工具栏快捷键 |
 | F11 | toggle_fullscreen | 单功能键，WebView2 同样拦截 |
 
 ### 菜单栏隐藏（Ctrl+H，Windows 专属）

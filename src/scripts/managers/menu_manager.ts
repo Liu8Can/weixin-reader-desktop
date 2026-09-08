@@ -17,6 +17,7 @@ import { settingsStore, MergedSettings, SiteSettings } from '../core/settings_st
 import { createSiteContext, SiteContext } from '../core/site_context';
 import { log } from '../core/logger';
 import { showToast } from '../core/toast';
+import { EventBus, Events } from '../core/event_bus';
 
 type TitleChangedEvent = {
   title: string;
@@ -30,6 +31,7 @@ export class MenuManager {
   private routeChangedHandler: ((e: Event) => void) | null = null;
   private legacyRouteChangedHandler: ((e: Event) => void) | null = null;
   private titleChangedHandler: ((e: Event) => void) | null = null;
+  private capabilitiesChangedHandler: ((e: Event) => void) | null = null;
   private unlistenMenuAction: (() => void) | null = null;
   private unlistenShowToast: (() => void) | null = null;
   private unlistenMenuRebuilt: (() => void) | null = null;
@@ -75,10 +77,14 @@ export class MenuManager {
     this.titleChangedHandler = ((e: CustomEvent<TitleChangedEvent>) => {
       this.updateWindowTitle(e.detail.title);
     }) as EventListener;
+    this.capabilitiesChangedHandler = (() => {
+      void this.updateMenuEnabledStatus('capabilities-changed');
+    }) as EventListener;
 
     window.addEventListener('ipc:route-changed', this.routeChangedHandler);
     window.addEventListener('wxrd:route-changed', this.legacyRouteChangedHandler);
     window.addEventListener('ipc:title-changed', this.titleChangedHandler);
+    window.addEventListener('atreader:capabilities-changed', this.capabilitiesChangedHandler);
 
     // 监听菜单重建事件
     this.unlistenMenuRebuilt = await listen('menu-rebuilt', () => {
@@ -140,10 +146,13 @@ export class MenuManager {
     if (!isReader) {
       await this.applyMenuEnabledStatus({
         readerWide: false,
-        hideCursor: false,
         hideToolbar: false,
         hideNavbar: false,
+        hideCursor: false,
         autoFlip: false,
+        previousChapter: false,
+        nextChapter: false,
+        readerStyle: false,
       });
       return;
     }
@@ -153,35 +162,61 @@ export class MenuManager {
     const siteId = this.siteContext.siteId;
     const isWeread = siteId === 'weread';
     const caps = isWeread
-      ? { wideMode: true, hideToolbar: true, hideNavbar: true }
+      ? {
+          wideMode: true,
+          hideToolbar: true,
+          hideNavbar: true,
+          hideCursor: true,
+          autoFlip: true,
+          chapterNav: true,
+        }
       : this.siteContext.currentRuntime?.manifest.capabilities;
     const capWide = caps?.wideMode === true;
     const capToolbar = caps?.hideToolbar === true;
     const capNavbar = caps?.hideNavbar === true;
+    const runtime = this.siteContext.currentRuntime;
+    const capPreviousChapter = runtime?.canNavigatePreviousChapter?.()
+      ?? runtime?.canNavigateChapter?.()
+      ?? false;
+    const capNextChapter = runtime?.canNavigateNextChapter?.()
+      ?? runtime?.canNavigateChapter?.()
+      ?? false;
+    const capStyle = this.siteContext.currentRuntime?.canOpenReadingStyle?.() === true;
 
     await this.applyMenuEnabledStatus({
       readerWide: capWide,
-      hideCursor: true,
       hideToolbar: capToolbar,
       hideNavbar: capNavbar,
-      autoFlip: true,
+      hideCursor: caps?.hideCursor === true,
+      autoFlip: caps?.autoFlip === true,
+      previousChapter: capPreviousChapter,
+      nextChapter: capNextChapter,
+      readerStyle: capStyle,
     });
   }
 
   private async applyMenuEnabledStatus(state: {
     readerWide: boolean;
-    hideCursor: boolean;
     hideToolbar: boolean;
     hideNavbar: boolean;
+    hideCursor: boolean;
     autoFlip: boolean;
+    previousChapter: boolean;
+    nextChapter: boolean;
+    readerStyle: boolean;
   }) {
     try {
       await Promise.all([
         invoke('set_menu_item_enabled', { id: 'reader_wide', enabled: state.readerWide }),
-        invoke('set_menu_item_enabled', { id: 'hide_cursor', enabled: state.hideCursor }),
         invoke('set_menu_item_enabled', { id: 'hide_toolbar', enabled: state.hideToolbar }),
         invoke('set_menu_item_enabled', { id: 'hide_navbar', enabled: state.hideNavbar }),
+        invoke('set_menu_item_enabled', { id: 'hide_cursor', enabled: state.hideCursor }),
         invoke('set_menu_item_enabled', { id: 'auto_flip', enabled: state.autoFlip }),
+        invoke('set_menu_item_enabled', { id: 'reader_prev_page', enabled: state.autoFlip }),
+        invoke('set_menu_item_enabled', { id: 'reader_next_page', enabled: state.autoFlip }),
+        invoke('set_menu_item_enabled', { id: 'reader_prev_chapter', enabled: state.previousChapter }),
+        invoke('set_menu_item_enabled', { id: 'reader_next_chapter', enabled: state.nextChapter }),
+        invoke('set_menu_item_enabled', { id: 'reader_style', enabled: state.readerStyle }),
         // 缩放属于壳能力，正文外仍可使用。
         invoke('set_menu_item_enabled', { id: 'zoom_in', enabled: true }),
         invoke('set_menu_item_enabled', { id: 'zoom_out', enabled: true }),
@@ -225,7 +260,6 @@ export class MenuManager {
     // Then update menu state (checkmark) for all items
     try {
       await invoke('update_menu_state', { id: 'reader_wide', state: wideState });
-      await invoke('update_menu_state', { id: 'hide_cursor', state: !!settings.hideCursor });
       await invoke('update_menu_state', { id: 'hide_toolbar', state: toolbarState });
       await invoke('update_menu_state', { id: 'hide_navbar', state: navbarState });
       await invoke('update_menu_state', { id: 'auto_flip', state: autoFlipState });
@@ -239,6 +273,16 @@ export class MenuManager {
     const siteId = this.siteContext.siteId;
 
     log.debug('[MenuManager] Handling action:', action, 'siteId:', siteId);
+
+    const readerActions = new Set([
+      'reader_wide', 'hide_toolbar', 'hide_navbar', 'hide_cursor', 'auto_flip',
+      'reader_prev_page', 'reader_next_page', 'reader_prev_chapter',
+      'reader_next_chapter', 'reader_style',
+    ]);
+    if (readerActions.has(action) && !this.checkIsReader()) {
+      log.warn('[MenuManager] Ignoring reader action outside reader page:', action);
+      return;
+    }
 
     switch (action) {
       case 'reader_wide':
@@ -297,6 +341,17 @@ export class MenuManager {
         }
         break;
 
+      case 'reader_prev_page':
+      case 'reader_next_page':
+      case 'reader_prev_chapter':
+      case 'reader_next_chapter':
+        EventBus.emit(Events.READER_COMMAND, { action });
+        break;
+
+      case 'reader_style':
+        this.siteContext.currentRuntime?.openReadingStyle?.();
+        break;
+
     }
   }
 
@@ -316,6 +371,10 @@ export class MenuManager {
     if (this.titleChangedHandler) {
       window.removeEventListener('ipc:title-changed', this.titleChangedHandler);
       this.titleChangedHandler = null;
+    }
+    if (this.capabilitiesChangedHandler) {
+      window.removeEventListener('atreader:capabilities-changed', this.capabilitiesChangedHandler);
+      this.capabilitiesChangedHandler = null;
     }
 
     // Unlisten Tauri event

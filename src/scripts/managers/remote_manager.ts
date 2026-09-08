@@ -28,6 +28,7 @@ export class RemoteManager {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private initializationGeneration = 0;
   private unsubscribeSettings: (() => void) | null = null;
+  private unsubscribeReaderCommand: (() => void) | null = null;
   private routeChangedHandler: (() => void) | null = null;
 
   // 当前章节索引（从 URL 或 API 获取）
@@ -45,6 +46,16 @@ export class RemoteManager {
       if (shouldEnable && !this.enabled) this.enable();
       else if (!shouldEnable && this.enabled) this.disable();
     });
+    this.unsubscribeReaderCommand = EventBus.on<{ action: string }>(
+      Events.READER_COMMAND,
+      ({ action }) => {
+        if (!this.siteContext.isReaderPage) return;
+        if (action === 'reader_prev_page') this.performPageTurn('backward');
+        else if (action === 'reader_next_page') this.performPageTurn('forward');
+        else if (action === 'reader_prev_chapter') this.navigateChapter(-1);
+        else if (action === 'reader_next_chapter') this.navigateChapter(1);
+      },
+    );
 
     // 初始检查
     const settings = settingsStore.get();
@@ -104,6 +115,7 @@ export class RemoteManager {
       this.updateCurrentChapterFromUrl();
 
       log.info(`[RemoteManager] 初始化成功，共 ${chapterManager.getChapters().length} 章`);
+      window.dispatchEvent(new Event('atreader:capabilities-changed'));
     };
 
     check();
@@ -252,6 +264,7 @@ export class RemoteManager {
 
     this.keyboardHandler = (e: KeyboardEvent) => {
       if (!this.siteContext.isReaderPage) return;
+      if ((e as KeyboardEvent & { __atreaderMenuChapterNavigation?: boolean }).__atreaderMenuChapterNavigation) return;
 
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
@@ -368,6 +381,8 @@ export class RemoteManager {
     this.menuDebounceTimer = null;
     this.unsubscribeSettings?.();
     this.unsubscribeSettings = null;
+    this.unsubscribeReaderCommand?.();
+    this.unsubscribeReaderCommand = null;
     if (this.routeChangedHandler) {
       window.removeEventListener('ipc:route-changed', this.routeChangedHandler);
       this.routeChangedHandler = null;

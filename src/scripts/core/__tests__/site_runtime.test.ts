@@ -155,6 +155,44 @@ describe('ReaderSiteRuntime and SiteContext', () => {
     expect(runtime.manifest.capabilities.doubleColumn).toBe(true);
   });
 
+  it('bridges legacy chapter capability through the documented arrow-key contract', () => {
+    const keys: string[] = [];
+    const listener = (event: KeyboardEvent) => {
+      if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
+        keys.push(event.code);
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', listener, { capture: true });
+    try {
+      const runtime = createPluginSiteRuntime(externalPlugin(), {
+        ...manifest,
+        capabilities: { chapterNav: true },
+      });
+
+      expect(runtime.canNavigateChapter?.()).toBe(true);
+      expect(runtime.prevChapter?.()).toBe(true);
+      expect(runtime.nextChapter?.()).toBe(true);
+      expect(keys).toEqual(['ArrowUp', 'ArrowDown']);
+    } finally {
+      window.removeEventListener('keydown', listener, { capture: true });
+    }
+  });
+
+  it('treats an explicit chapterNav false as authoritative over plugin methods', () => {
+    const plugin = externalPlugin();
+    plugin.prevChapter = () => true;
+    plugin.nextChapter = () => true;
+    const runtime = createPluginSiteRuntime(plugin, {
+      ...manifest,
+      capabilities: { chapterNav: false },
+    });
+
+    expect(runtime.canNavigateChapter?.()).toBe(false);
+    expect(runtime.canNavigatePreviousChapter?.()).toBe(false);
+    expect(runtime.canNavigateNextChapter?.()).toBe(false);
+  });
+
   it('reuses one MutationObserver across repeated stop and restart cycles', () => {
     const NativeObserver = globalThis.MutationObserver;
     let instances = 0;

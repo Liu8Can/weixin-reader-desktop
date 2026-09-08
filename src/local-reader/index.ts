@@ -5,7 +5,7 @@ import { settingsStore } from '../scripts/core/settings_store';
 import { invoke, logToFile, waitForTauri } from '../scripts/core/tauri';
 import type { Chapter, PluginAPI } from '../scripts/core/plugin_types';
 import { EPUB_DOCUMENT_TYPES, chapterBreakCss as buildChapterBreakCss, sanitizeEpubMarkup, wrapSvgSpineDocument } from './epub_security';
-import { resolveLocalKeyboardAction } from './keyboard';
+import { resolveLocalKeyboardAction, shouldHandleLocalKeyboardAction } from './keyboard';
 import { PositionHistory } from './position_history';
 import { splitTxtChapters, txtChapterToXHTML, type TxtChapter } from './txt';
 import { buildToc, findTopLevelGroup, type FlatTocItem, type TocTreeNode } from './toc';
@@ -904,6 +904,12 @@ class LocalReader implements LocalReaderController {
     }
   }
 
+  openReadingStyle(): boolean {
+    const panel = element('stylePanel');
+    if (!panel.classList.contains('open')) this.togglePanel('stylePanel');
+    return true;
+  }
+
   private closePanels(): boolean {
     let wasOpen = false;
     document.querySelectorAll('.reader-panel').forEach(panel => {
@@ -1031,7 +1037,7 @@ class LocalReader implements LocalReaderController {
     const shortcutMap: Record<string, string> = {
       ',': 'settings', r: 'refresh', '[': 'back', ']': 'forward', i: 'auto_flip',
       '=': 'zoom_in', '-': 'zoom_out', '0': 'zoom_reset', '9': 'reader_wide',
-      '8': 'hide_cursor', o: 'hide_toolbar', p: 'hide_navbar',
+      '8': 'hide_cursor', o: 'hide_toolbar',
     };
     this.keyHandler = (event: KeyboardEvent) => {
       // 按键原始键值落盘：用于裁决遥控器事件是否到达前端及键值形态
@@ -1040,7 +1046,8 @@ class LocalReader implements LocalReaderController {
       if (target.matches('input, select, textarea') || target.isContentEditable) return;
       if (event.key === 'Escape') { this.closePanels(); return; }
       const localAction = resolveLocalKeyboardAction(event.key, isWindows, event.code);
-      if (localAction) {
+      const readingShortcutsEnabled = settingsStore.get().enableRemoteController !== false;
+      if (localAction && shouldHandleLocalKeyboardAction(localAction, readingShortcutsEnabled)) {
         event.preventDefault();
         event.stopImmediatePropagation();
         // 翻页前清空选区（含章节 iframe 内选区）：保留选区时 foliate 的选区联动
@@ -1083,7 +1090,10 @@ class LocalReader implements LocalReaderController {
           void invoke('toggle_menu_bar');
           return;
         }
-        const action = shortcutMap[event.key.toLowerCase()];
+        const normalizedKey = event.key.toLowerCase();
+        const action = normalizedKey === 'o' && event.shiftKey
+          ? 'open_local_book'
+          : shortcutMap[normalizedKey];
         if (action) {
           event.preventDefault();
           event.stopImmediatePropagation();

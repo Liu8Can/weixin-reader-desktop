@@ -16,6 +16,8 @@
     "allow-get-app-version",
     "allow-get-settings",
     "allow-patch-settings",
+    "allow-set-content-source-enabled",
+    "allow-claim-settings-target",
     "allow-clear-local-history",
     "allow-install-plugin",
     "allow-prepare-plugin-install",

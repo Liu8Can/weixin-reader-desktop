@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { settingsStore, type MergedSettings } from '../settings_store';
 import { MenuManager } from '../../managers/menu_manager';
+import { EventBus, Events } from '../event_bus';
 
 const originalTauri = window.__TAURI__;
 const originals = {
@@ -104,6 +105,55 @@ describe('MenuManager behavior', () => {
     });
   });
 
+  it('refuses reader actions after leaving the reader route', () => {
+    settingsStore.get = () => settings({
+      autoFlip: { active: false, interval: 15, keepAwake: true },
+    });
+    const manager = createBareManager('demo', false);
+
+    (manager as any).handleMenuAction('auto_flip');
+    (manager as any).handleMenuAction('reader_wide');
+
+    expect(settingsStore.updateGlobal).not.toHaveBeenCalled();
+    expect(settingsStore.updateSite).not.toHaveBeenCalled();
+  });
+
+  it('routes reading commands through the shared reader action channel', () => {
+    const manager = createBareManager();
+    const actions: string[] = [];
+    const cancel = EventBus.on<{ action: string }>(
+      Events.READER_COMMAND,
+      payload => actions.push(payload.action),
+    );
+
+    for (const action of [
+      'reader_prev_page',
+      'reader_next_page',
+      'reader_prev_chapter',
+      'reader_next_chapter',
+    ]) {
+      (manager as any).handleMenuAction(action);
+    }
+
+    expect(actions).toEqual([
+      'reader_prev_page',
+      'reader_next_page',
+      'reader_prev_chapter',
+      'reader_next_chapter',
+    ]);
+    cancel();
+  });
+
+  it('opens the active runtime reading-style panel idempotently', () => {
+    const manager = createBareManager();
+    const openReadingStyle = mock(() => true);
+    (manager as any).siteContext.currentRuntime.openReadingStyle = openReadingStyle;
+
+    (manager as any).handleMenuAction('reader_style');
+
+    expect(openReadingStyle).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the compatibility update path only when no site runtime exists', () => {
     settingsStore.get = () => settings({ hideToolbar: false });
     const manager = createBareManager('unknown');
@@ -126,7 +176,7 @@ describe('MenuManager behavior', () => {
     }));
 
     const calls = invokeMock.mock.calls.map(([command, args]) => ({ command, args }));
-    expect(calls.filter(call => call.command === 'set_menu_item_enabled')).toHaveLength(8);
+    expect(calls.filter(call => call.command === 'set_menu_item_enabled')).toHaveLength(13);
     expect(calls).toContainEqual({
       command: 'update_menu_state',
       args: { id: 'reader_wide', state: true },
@@ -163,7 +213,7 @@ describe('MenuManager behavior', () => {
     await (manager as any).updateMenuEnabledStatus('outside-reader');
     calls = invokeMock.mock.calls.map(([command, args]) => ({ command, args }));
     expect(calls.some(({ command }) => command === 'get_installed_plugins')).toBe(false);
-    for (const id of ['reader_wide', 'hide_cursor', 'hide_toolbar', 'hide_navbar', 'auto_flip']) {
+    for (const id of ['reader_wide', 'hide_toolbar', 'hide_navbar', 'auto_flip', 'reader_prev_page', 'reader_next_page', 'reader_prev_chapter', 'reader_next_chapter', 'reader_style']) {
       expect(calls).toContainEqual({
         command: 'set_menu_item_enabled',
         args: { id, enabled: false },
@@ -180,7 +230,7 @@ describe('MenuManager behavior', () => {
     (manager as any).siteContext.isReaderPage = false;
     await (manager as any).updateMenuEnabledStatus('home');
 
-    for (const id of ['reader_wide', 'hide_cursor', 'hide_toolbar', 'hide_navbar', 'auto_flip']) {
+    for (const id of ['reader_wide', 'hide_toolbar', 'hide_navbar', 'auto_flip', 'reader_prev_page', 'reader_next_page', 'reader_prev_chapter', 'reader_next_chapter', 'reader_style']) {
       const updates = invokeMock.mock.calls.filter(([command, args]) =>
         command === 'set_menu_item_enabled' && args?.id === id
       );

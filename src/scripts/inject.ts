@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   //
   // Windows 专属"瞒天过海"快捷键方案：
   // Windows + WebView2 下 muda 菜单 accelerator 全面失效（Edge 引擎在菜单消息
-  // 循环之前消费了所有 Ctrl 系列键盘事件，如 Ctrl+P 打印、Ctrl+O 打开文件、
+  // 循环之前消费了所有 Ctrl 系列键盘事件，如 Ctrl+P 打印、Ctrl+O 浏览器打开文件、
   // Ctrl+=/-/0 缩放）。菜单里照常显示快捷键提示文字，实际触发走前端 keydown
   // 监听，在 capture 阶段 preventDefault 拦住 WebView2 默认行为，再调
   // simulate_menu_click 复用菜单点击逻辑。macOS 完全不受影响，不进入此分支。
@@ -47,7 +47,6 @@ async function main(): Promise<void> {
     '9': 'reader_wide',
     '8': 'hide_cursor',
     'o': 'hide_toolbar',
-    'p': 'hide_navbar',
   };
 
   window.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -87,7 +86,9 @@ async function main(): Promise<void> {
         'Comma': ',',
       };
       const normalizedKey = rawKey || (codeMap[e.code] ?? '');
-      const action = windowsShortcutMap[normalizedKey];
+      const action = normalizedKey === 'o' && e.shiftKey
+        ? 'open_local_book'
+        : windowsShortcutMap[normalizedKey];
       if (action) {
         e.preventDefault();
         e.stopImmediatePropagation();

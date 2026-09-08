@@ -1,170 +1,100 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>微信读书桌面版</title>
-    <style>
-        :root {
-            --bg-color: #f5f5f5;
-            --text-color: #333333;
-            --accent-color: #4a90e2;
-        }
-
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-color: #1a1a1a;
-                --text-color: #a1a1a1;
-            }
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            user-select: none;
-            overflow: hidden;
-        }
-
-        .ascii-art {
-            white-space: pre;
-            font-size: 12px;
-            line-height: 1.2;
-            margin-bottom: 2rem;
-            color: var(--text-color);
-            opacity: 0.8;
-        }
-
-        .status {
-            margin-top: 1rem;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .spinner {
-            width: 12px;
-            height: 12px;
-            border: 2px solid var(--text-color);
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            display: none;
-        }
-
-        .btn {
-            margin-top: 2rem;
-            padding: 8px 16px;
-            background: transparent;
-            border: 1px solid var(--text-color);
-            color: var(--text-color);
-            cursor: pointer;
-            border-radius: 4px;
-            font-family: inherit;
-            font-size: 12px;
-            transition: all 0.2s;
-            opacity: 0; /* Initially hidden */
-            pointer-events: none;
-        }
-
-        .btn:hover {
-            border-color: var(--accent-color);
-            color: var(--accent-color);
-        }
-
-        .btn.visible {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* 隐藏滚动条 */
-        ::-webkit-scrollbar {
-            display: none;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>艾特阅读</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --paper: #171c1b;
+      --paper-soft: #202826;
+      --ink: #edf5f1;
+      --muted: #91a39c;
+      --accent: #65c4b8;
+      --accent-soft: rgba(101, 196, 184, .14);
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; }
+    body {
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 50% 42%, var(--accent-soft), transparent 38%),
+        linear-gradient(145deg, var(--paper-soft), var(--paper) 64%);
+      font-family: "Songti SC", "Noto Serif CJK SC", STSong, serif;
+      user-select: none;
+    }
+    main {
+      width: min(360px, calc(100vw - 64px));
+      display: grid;
+      justify-items: center;
+      text-align: center;
+      animation: arrive .7s cubic-bezier(.2, .8, .2, 1) both;
+    }
+    .logo {
+      width: 72px;
+      height: 72px;
+      background: var(--accent);
+      -webkit-mask: url('/atrd-logo.svg') center / contain no-repeat;
+      mask: url('/atrd-logo.svg') center / contain no-repeat;
+      filter: drop-shadow(0 12px 26px rgba(101, 196, 184, .18));
+      animation: breathe 2.2s ease-in-out infinite;
+    }
+    h1 {
+      margin: 25px 0 0;
+      font-size: 30px;
+      font-weight: 600;
+      letter-spacing: .2em;
+      text-indent: .2em;
+    }
+    .status {
+      margin: 13px 0 0;
+      color: var(--muted);
+      font: 12px/1.6 ui-monospace, "SF Mono", Menlo, monospace;
+      letter-spacing: .08em;
+    }
+    .progress {
+      width: 132px;
+      height: 1px;
+      margin-top: 24px;
+      overflow: hidden;
+      background: rgba(237, 245, 241, .1);
+    }
+    .progress::after {
+      content: "";
+      display: block;
+      width: 48%;
+      height: 100%;
+      background: var(--accent);
+      animation: travel 1.5s ease-in-out infinite;
+    }
+    @keyframes arrive {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes breathe {
+      50% { transform: scale(.95); opacity: .72; }
+    }
+    @keyframes travel {
+      from { transform: translateX(-105%); }
+      to { transform: translateX(215%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      main, .logo, .progress::after { animation: none; }
+      .progress::after { width: 100%; opacity: .55; }
+    }
+  </style>
 </head>
 <body>
-    <div class="ascii-art">
-        .----.
-       /    /|
-      .----. |
-      | 读 | '
-      | 书 |/ 
-      '----'  
-   WEIXIN READER
-    </div>
-
-    <div class="status">
-        <div class="spinner" id="spinner"></div>
-        <span id="status-text">正在连接图书馆...</span>
-    </div>
-
-    <button class="btn" id="retry-btn">重新连接</button>
-
-    <script>
-        const TARGET_URL = 'https://weread.qq.com';
-        const spinner = document.getElementById('spinner');
-        const statusText = document.getElementById('status-text');
-        const retryBtn = document.getElementById('retry-btn');
-
-        function updateStatus(msg, loading = false, showRetry = false) {
-            statusText.textContent = msg;
-            spinner.style.display = loading ? 'block' : 'none';
-            if (showRetry) {
-                retryBtn.classList.add('visible');
-            } else {
-                retryBtn.classList.remove('visible');
-            }
-        }
-
-        function checkConnectionAndRedirect() {
-            if (!navigator.onLine) {
-                updateStatus('网络连接已断开', false, true);
-                return;
-            }
-
-            updateStatus('正在连接图书馆...', true, false);
-
-            // 尝试 fetch 以确保真的能连上（处理有网但无法访问的情况）
-            fetch(TARGET_URL, { mode: 'no-cors' })
-                .then(() => {
-                    window.location.href = TARGET_URL;
-                })
-                .catch(() => {
-                    // 如果 fetch 失败（可能是跨域或其他网络错误），但在桌面端环境下通常意味着无法访问
-                    // 这里我们简单地重试几次或者直接显示错误
-                    // 由于 no-cors 模式下我们拿不到状态码，只要不报错就算通
-                    // 如果真的报错，说明网络完全不通
-                     window.location.href = TARGET_URL;
-                });
-            
-            // 设置一个超时，如果 5秒 还没跳转，可能是有问题
-            setTimeout(() => {
-                if (window.location.href !== TARGET_URL) {
-                     // 强制跳转一次试试
-                     window.location.href = TARGET_URL;
-                }
-            }, 2000);
-        }
-
-        window.addEventListener('online', checkConnectionAndRedirect);
-        window.addEventListener('offline', () => updateStatus('网络已断开', false, true));
-
-        retryBtn.addEventListener('click', checkConnectionAndRedirect);
-
-        // Init
-        checkConnectionAndRedirect();
-    </script>
+  <main aria-live="polite">
+    <div class="logo" role="img" aria-label="艾特阅读标志"></div>
+    <h1>艾特阅读</h1>
+    <p class="status">正在准备阅读空间</p>
+    <div class="progress" aria-hidden="true"></div>
+  </main>
 </body>
 </html>

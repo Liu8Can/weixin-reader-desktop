@@ -27,11 +27,13 @@ const uninstallTauriMock = () => {
 const createManager = () => {
   const nextPage = mock(() => undefined);
   const prevPage = mock(() => undefined);
+  const prevChapter = mock(() => true);
+  const nextChapter = mock(() => true);
   const manager = Object.create(RemoteManager.prototype) as RemoteManager;
   Object.assign(manager as any, {
     siteContext: {
       isReaderPage: true,
-      currentRuntime: { nextPage, prevPage },
+      currentRuntime: { nextPage, prevPage, prevChapter, nextChapter },
     },
     enabled: true,
     keyboardHandler: null,
@@ -47,7 +49,7 @@ const createManager = () => {
     currentChapterIdx: -1,
   });
   (manager as any).setupKeyboardListener();
-  return { manager, nextPage, prevPage };
+  return { manager, nextPage, prevPage, prevChapter, nextChapter };
 };
 
 describe('RemoteManager keyboard contract', () => {
@@ -222,6 +224,19 @@ describe('RemoteManager keyboard contract', () => {
     expect(nextPage).not.toHaveBeenCalled();
     expect(prevPage).not.toHaveBeenCalled();
     expect(settingsStore.update).not.toHaveBeenCalled();
+    manager.destroy();
+  });
+
+  it('does not recursively consume chapter keys emitted by the runtime bridge', () => {
+    const { manager, prevChapter, nextChapter } = createManager();
+    for (const code of ['ArrowUp', 'ArrowDown']) {
+      const event = new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true });
+      Object.defineProperty(event, '__atreaderMenuChapterNavigation', { value: true });
+      document.dispatchEvent(event);
+    }
+
+    expect(prevChapter).not.toHaveBeenCalled();
+    expect(nextChapter).not.toHaveBeenCalled();
     manager.destroy();
   });
 

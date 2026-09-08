@@ -27,6 +27,11 @@ export class LocalSiteRuntime implements ReaderSiteRuntime {
   prevPage(): void | Promise<void> { return getLocalReaderController()?.prevPage(); }
   nextChapter(): boolean | Promise<boolean> { return getLocalReaderController()?.nextChapter() ?? false; }
   prevChapter(): boolean | Promise<boolean> { return getLocalReaderController()?.prevChapter() ?? false; }
+  openReadingStyle(): boolean { return getLocalReaderController()?.openReadingStyle() ?? false; }
+  canOpenReadingStyle(): boolean { return getLocalReaderController()?.isReady() ?? false; }
+  canNavigateChapter(): boolean { return getLocalReaderController()?.isReady() ?? false; }
+  canNavigatePreviousChapter(): boolean { return this.canNavigateChapter(); }
+  canNavigateNextChapter(): boolean { return this.canNavigateChapter(); }
   back(): void | Promise<void> { return getLocalReaderController()?.back(); }
   forward(): void | Promise<void> { return getLocalReaderController()?.forward(); }
   getStyles(): PluginStyles { return {}; }

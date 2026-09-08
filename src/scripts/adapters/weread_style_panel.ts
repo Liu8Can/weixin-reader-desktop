@@ -2,20 +2,43 @@
  * 微信读书阅读样式面板（issue #3 / #4）
  *
  * 右侧工具栏注入「样式」按钮，弹窗提供：
- * - 纯白正文（issue #3）：黑底 + canvas brightness 提亮（微信读书暗色正文约
+ * - 纯白正文（issue #3）：深色底（背景黑度三档）+ canvas brightness 提亮（微信读书暗色正文约
  *   RGB(155)；高亮档 2.2 提至纯白并锐化边缘，不可用 invert，反色后更暗）
  * - 行间距 / 段间距（issue #4）：命中已知正文类调整 DOM 排版层，
  *   微信读书随后将重排结果快照进 canvas。绝不粗粒度命中 #preRenderContent *，
  *   那会破坏预渲染/分页导致正文停在加载动画（issue 作者实测踩坑）。
  *
- * 设置经插件命名空间持久化（settings.json pluginConfigs.weread），
+ * 设置经插件命名空间与站点偏好持久化（settings.json），
  * 样式变化走「单一控制点」applyReadingStyles 统一注入/移除。
  */
 
 import type { PluginAPI } from '../core/plugin_types';
+import {
+  DEFAULT_WIDE_WIDTH_PERCENT,
+  MAX_WIDE_WIDTH_PERCENT,
+  MIN_WIDE_WIDTH_PERCENT,
+  normalizeWideWidthPercent,
+} from '../core/reader_width';
 
 type LineHeightChoice = number | null;
 type SpacingChoice = number | null;
+
+/** 夜间正文背景档位：由浅到深排列（柔黑/深黑/纯黑）；柔黑需不亮于微信读书
+ *  原生夜间底色（否则比不开启还白），深黑居中，纯黑最深；默认深黑。
+ *  档位只换底色，文字亮度仍由独立三档控制，不做自动联动 */
+const READING_BACKGROUND_PRESETS = [
+  { label: '柔黑', value: '#18191b' },
+  { label: '深黑', value: '#16171a' },
+  { label: '纯黑', value: '#000000' },
+] as const;
+const DEFAULT_READING_BACKGROUND = '#16171a';
+
+/** 背景档位白名单校验：持久化值只接受预设色；null/未知值回落深黑（默认档），
+ *  防止被污染的存储值拼进 style 注入 */
+const normalizeReadingBackground = (value: unknown): string =>
+  READING_BACKGROUND_PRESETS.some(preset => preset.value === value)
+    ? (value as string)
+    : DEFAULT_READING_BACKGROUND;
 
 /** 微信读书原生行距：官方 CSS 各 fontLevel 行高/字号比值恒定 ≈ 1.9
  *  （18/35、21/40、24/46、28/54、32/61、36/69、42/80，官方 wrwebnjlogic 9.css 实测） */
@@ -107,7 +130,19 @@ const mountPanel = (api: PluginAPI): (() => void) => {
           <button type="button" data-value="2.2">高亮</button>
         </div>
       </div>
-      <p class="wxrd-hint">夜间：黑底 + 提亮文字；日间：无效；插图同步提亮</p>
+      <div class="wxrd-field" data-row="background">
+        <span>背景黑度</span>
+        <div class="wxrd-segments" data-key="whiteTextBackground">
+          ${READING_BACKGROUND_PRESETS.map(preset => `<button type="button" data-value="${preset.value}">${preset.label}</button>`).join('')}
+        </div>
+      </div>
+      <p class="wxrd-hint">夜间：深色底 + 提亮文字；日间：无效；插图同步提亮</p>
+    </div>
+    <div class="wxrd-panel-section">
+      <div class="wxrd-field">
+        <span>宽度值 <output data-output="wideWidthPercent"></output></span>
+        <input type="range" data-key="wideWidthPercent" min="${MIN_WIDE_WIDTH_PERCENT}" max="${MAX_WIDE_WIDTH_PERCENT}" step="2">
+      </div>
     </div>
     <div class="wxrd-panel-section">
       <div class="wxrd-field">
@@ -164,6 +199,14 @@ const mountPanel = (api: PluginAPI): (() => void) => {
       void settings.set('whiteTextBrightness', Number(value));
     });
 
+  // 背景黑度档位（纯黑/深黑/柔黑）：夜间正文底色，与文字亮度相互独立
+  panel.querySelector('.wxrd-segments[data-key="whiteTextBackground"]')
+    ?.addEventListener('click', (event) => {
+      const value = (event.target as HTMLElement).closest('button')?.dataset.value;
+      if (!value) return;
+      void settings.set('whiteTextBackground', value);
+    });
+
   panel.querySelectorAll<HTMLInputElement>('input[type="range"][data-key]').forEach(slider => {
     const key = slider.dataset.key!;
     // change（松手）才写入：微信读书重分页成本高，拖动中不反复触发 resize
@@ -176,6 +219,8 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     // 恢复默认 = 清空本面板全部设置（含纯白正文），回到微信读书原生观感
     void settings.set('whiteText', false)
       .then(() => settings.set('whiteTextBrightness', 1.35))
+      .then(() => settings.set('whiteTextBackground', null))
+      .then(() => settings.set('wideWidthPercent', DEFAULT_WIDE_WIDTH_PERCENT))
       .then(() => settings.set('lineHeight', null))
       .then(() => settings.set('paragraphSpacing', null));
   });
@@ -186,19 +231,27 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     const whiteText = config.whiteText === true;
     if (whiteText) {
       const brightness = Number(config.whiteTextBrightness ?? 1.35) || 1.35;
-      // 夜间（无 wr_whiteTheme）：黑底 + canvas 提亮（155 灰 → 255 白）；
+      const background = normalizeReadingBackground(config.whiteTextBackground);
+      // 夜间（无 wr_whiteTheme）：可选深色底 + canvas 提亮（155 灰 → 255 白）；
       // 日间（wr_whiteTheme）：纯白背景即可，正文 #0d141e 本已近黑（PS 吸管实测）
-      // 不覆盖 body 背景：正文卡片与页面底色保留色差，微信读书的圆角才可见
+      // 不覆盖 body 背景：正文卡片与页面底色保留色差。
+      // 五层容器必须同色同圆角：少注色一层，外层原生圆角缺口处会露出内层
+      // 直角色块；各层同色后圆弧缝隙不可见，也无需 overflow:hidden（避免裁掉
+      // 微信读书浮动 UI）。外层两个容器来自横排模式实测（app_content 系）。
       api.style.inject('wxrd-white-text', `
+        body:not(.wr_whiteTheme) .readerContent > .app_content:not(.app_content_in_reader),
+        body:not(.wr_whiteTheme) .wr_horizontalReader_app_content,
         body:not(.wr_whiteTheme) .readerChapterContent,
         body:not(.wr_whiteTheme) .renderTargetContainer,
         body:not(.wr_whiteTheme) .wr_canvasContainer {
-          background-color: #000 !important;
+          background-color: ${background} !important;
           border-radius: 16px !important;
         }
         body:not(.wr_whiteTheme) .wr_canvasContainer canvas {
           filter: brightness(${brightness}) !important;
         }
+        body.wr_whiteTheme .readerContent > .app_content:not(.app_content_in_reader),
+        body.wr_whiteTheme .wr_horizontalReader_app_content,
         body.wr_whiteTheme .readerChapterContent,
         body.wr_whiteTheme .renderTargetContainer,
         body.wr_whiteTheme .wr_canvasContainer {
@@ -247,16 +300,31 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     brightnessGroup?.querySelectorAll('button').forEach(item => {
       item.classList.toggle('wxrd-selected', item.dataset.value === brightness);
     });
+    const background = normalizeReadingBackground(config.whiteTextBackground);
+    const backgroundGroup = panel.querySelector<HTMLElement>('.wxrd-segments[data-key="whiteTextBackground"]');
+    backgroundGroup?.querySelectorAll('button').forEach(item => {
+      item.classList.toggle('wxrd-selected', item.dataset.value === background);
+    });
     const defaults: Record<string, number> = {
+      wideWidthPercent: DEFAULT_WIDE_WIDTH_PERCENT,
       lineHeight: DEFAULT_LINE_HEIGHT,
       paragraphSpacing: DEFAULT_PARAGRAPH_SPACING,
     };
     panel.querySelectorAll<HTMLInputElement>('input[type="range"][data-key]').forEach(slider => {
       const key = slider.dataset.key!;
-      const value = config[key] ?? defaults[key];
+      const rawValue = config[key] ?? defaults[key];
+      const value = key === 'wideWidthPercent'
+        ? normalizeWideWidthPercent(rawValue)
+        : rawValue;
       slider.value = String(value);
       const output = panel.querySelector(`[data-output="${key}"]`);
-      if (output) output.textContent = key === 'paragraphSpacing' ? `${value}em` : String(value);
+      if (output) {
+        output.textContent = key === 'paragraphSpacing'
+          ? `${value}em`
+          : key === 'wideWidthPercent'
+            ? `${value}%`
+            : String(value);
+      }
     });
   };
 
@@ -388,8 +456,10 @@ const PANEL_UI_CSS = `
   cursor: pointer;
 }
 #wxrd-style-panel .wxrd-reset:hover { background: rgba(128, 128, 128, .12); }
-#wxrd-style-panel .wxrd-field[data-row="brightness"] { margin-top: 10px; }
+#wxrd-style-panel .wxrd-field[data-row="brightness"],
+#wxrd-style-panel .wxrd-field[data-row="background"] { margin-top: 10px; }
 #wxrd-style-panel:not([data-white-text="on"]) .wxrd-field[data-row="brightness"],
+#wxrd-style-panel:not([data-white-text="on"]) .wxrd-field[data-row="background"],
 #wxrd-style-panel:not([data-white-text="on"]) .wxrd-hint {
   display: none;
 }`;

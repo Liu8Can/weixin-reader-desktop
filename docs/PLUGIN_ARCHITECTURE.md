@@ -220,7 +220,7 @@ Rust 在临时目录完成全部校验后才替换已安装版本：
 
 | 字段 | 写入位置 |
 |---|---|
-| `zoom`、`readerWide`、`hideToolbar`、`hideNavbar` | `sites[pluginId]` |
+| `zoom`、`readerWide`、`wideWidthPercent`、`hideToolbar`、`hideNavbar` | `sites[pluginId]` |
 | 插件自定义字段 | `pluginConfigs[pluginId]` |
 
 插件应主动在 `onUnload()` 清理自行创建、未通过 Plugin API 登记的资源。宿主会兜底清理通过 API 注入的样式、订阅和可丢弃历史。

@@ -1,5 +1,6 @@
 import { BaseSiteAdapter } from './reading_site_adapter';
 import { ProgressTracker } from './progress_tracker';
+import { normalizeWideWidthPercent } from '../core/reader_width';
 
 /**
  * 微信读书网站适配器
@@ -43,15 +44,16 @@ export class WeReadAdapter extends BaseSiteAdapter {
 
   // ==================== 样式注入 ====================
 
-  getWideModeCSS(wide: boolean): string {
+  getWideModeCSS(wide: boolean, wideWidthPercent?: number): string {
+    const wideWidth = normalizeWideWidthPercent(wideWidthPercent);
     if (wide) {
       return `
         /* 微信读书 - 宽屏模式 */
         .readerTopBar,
         body:has(.readerControls[is-horizontal="true"]) .readerChapterContent,
         .app_content {
-          width: 90% !important;
-          max-width: calc(100vw - 224px) !important;
+          width: ${wideWidth}% !important;
+          max-width: calc(100vw) !important;
         }
         body:has(.readerControls:not([is-horizontal="true"])) .readerControls {
           margin-left: calc(50vw - 80px) !important;
@@ -83,7 +85,7 @@ export class WeReadAdapter extends BaseSiteAdapter {
         .readerTopBar,
         .app_content,
         body:has(.readerControls[is-horizontal="true"]) .readerChapterContent {
-          max-width: calc(100vw - 124px) !important;
+          /* max-width: calc(100vw - 124px) !important; */
         }
       `;
     } else {
@@ -91,11 +93,6 @@ export class WeReadAdapter extends BaseSiteAdapter {
         /* 微信读书 - 显示工具栏 */
         .readerControls {
           display: block !important;
-        }
-        .readerTopBar,
-        .app_content,
-        body:has(.readerControls[is-horizontal="true"]) .readerChapterContent {
-          max-width: calc(100vw - 224px) !important;
         }
       `;
     }

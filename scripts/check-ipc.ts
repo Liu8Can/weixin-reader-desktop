@@ -86,6 +86,20 @@ const forbiddenMainPermissions = mainRuntimePermissions.filter((permission) =>
 if (forbiddenMainPermissions.length > 0) {
   messages.push(`dangerous main-runtime permission: ${forbiddenMainPermissions.join(', ')}`);
 }
+// 远程主窗口的 core: 权限白名单：core:default（window 部分仅只读查询）与
+// core:event:default 已知安全；其余 core 权限（如 core:window:allow-set-theme）
+// 必须显式加入白名单并评估 scope 限定（如限定 label）后方可授予远程页面，
+// 否则远程页面可向任意窗口发起该命令。
+const allowedMainCorePermissions = new Set([
+  'core:default',
+  'core:event:default',
+]);
+const unexpectedMainCorePermissions = mainRuntimePermissions.filter(
+  (permission) => permission.startsWith('core:') && !allowedMainCorePermissions.has(permission),
+);
+if (unexpectedMainCorePermissions.length > 0) {
+  messages.push(`unexpected core permission in main-runtime (extend allowlist consciously): ${unexpectedMainCorePermissions.join(', ')}`);
+}
 const expectedMainCommands = new Set([
   'log_to_file',
   'update_menu_state',

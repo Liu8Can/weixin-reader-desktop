@@ -198,9 +198,11 @@ describe('Plugin API', () => {
           zoom: 0.8,
         });
         await api.settings.set('zoom', 1);
+        await api.settings.set('wideWidthPercent', 94);
         await api.settings.set('customMode', 'plain');
         expect(writes).toEqual([
           'site:{"zoom":1}',
+          'site:{"wideWidthPercent":94}',
           'plugin:{"customMode":"plain"}',
         ]);
       } finally {

@@ -321,5 +321,9 @@ describe('Tauri application contracts', () => {
     expect(capability.permissions.some(item =>
       /(?:fs|shell|updater|dialog|opener|create|install|uninstall|export)/i.test(item)
     )).toBe(false);
+    // core: 权限白名单：不允许 allow- 前缀过滤之外的 core 能力静默进入远程窗口
+    // （core:default 的 window 部分仅只读查询；新增 core 权限须显式扩展此列表）
+    const corePermissions = capability.permissions.filter(item => item.startsWith('core:'));
+    expect(corePermissions).toEqual(['core:default', 'core:event:default']);
   });
 });

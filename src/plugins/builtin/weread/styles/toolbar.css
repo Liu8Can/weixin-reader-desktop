@@ -11,16 +11,10 @@
 .wxrd-toolbar-hidden .readerTopBar,
 .wxrd-toolbar-hidden .app_content,
 .wxrd-toolbar-hidden body:has(.readerControls[is-horizontal="true"]) .readerChapterContent {
-  max-width: calc(100vw - 124px) !important;
+  /* max-width: calc(100vw - 124px) !important; */
 }
 
 /* ==================== 显示工具栏（默认） ==================== */
 .wxrd-toolbar-visible .readerControls {
   display: block !important;
-}
-
-.wxrd-toolbar-visible .readerTopBar,
-.wxrd-toolbar-visible .app_content,
-.wxrd-toolbar-visible body:has(.readerControls[is-horizontal="true"]) .readerChapterContent {
-  max-width: calc(100vw - 224px) !important;
 }

@@ -21,7 +21,7 @@ export interface ReaderSiteRuntime extends ReaderPlugin {
   readonly name: string;
   readonly styleOwner: 'manager' | 'plugin';
 
-  getWideModeCSS(wide: boolean): string;
+  getWideModeCSS(wide: boolean, wideWidthPercent?: number): string;
   getToolbarCSS(hide: boolean): string;
   getNavbarCSS?(hide: boolean): string;
   getDarkThemeCSS?(): string;
@@ -122,8 +122,8 @@ class WeReadSiteRuntime implements ReaderSiteRuntime {
     return {};
   }
 
-  getWideModeCSS(wide: boolean): string {
-    return this.getAdapter().getWideModeCSS(wide);
+  getWideModeCSS(wide: boolean, wideWidthPercent?: number): string {
+    return this.getAdapter().getWideModeCSS(wide, wideWidthPercent);
   }
 
   getToolbarCSS(hide: boolean): string {
@@ -259,7 +259,7 @@ class PluginSiteRuntime implements ReaderSiteRuntime {
     return this.plugin.getReaderMenuItems?.() ?? ['reader_wide', 'hide_toolbar', 'auto_flip'];
   }
 
-  getWideModeCSS(wide: boolean): string {
+  getWideModeCSS(wide: boolean, _wideWidthPercent?: number): string {
     const styles = this.plugin.getStyles().wideMode;
     return styles ? (wide ? styles.enabled : styles.disabled) : '';
   }

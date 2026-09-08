@@ -12,6 +12,10 @@
  */
 
 import { injectCSS, removeCSS } from '../core/utils';
+import {
+  DEFAULT_WIDE_WIDTH_PERCENT,
+  normalizeWideWidthPercent,
+} from '../core/reader_width';
 import { settingsStore, MergedSettings } from '../core/settings_store';
 import { createSiteContext, SiteContext } from '../core/site_context';
 import { log } from '../core/logger';
@@ -19,6 +23,7 @@ import { RouteChangedEvent } from './ipc_manager';
 
 export class StyleManager {
   private isWide = false;
+  private wideWidthPercent = DEFAULT_WIDE_WIDTH_PERCENT;
   private isHideToolbar = false;
   private isHideNavbar = false;
   private isReader = false;
@@ -126,11 +131,18 @@ export class StyleManager {
 
   private updateStyles(settings: MergedSettings) {
     const newIsWide = !!settings.readerWide;
+    const newWideWidthPercent = normalizeWideWidthPercent(settings.wideWidthPercent);
     const newIsHideToolbar = !!settings.hideToolbar;
     const newIsHideNavbar = !!settings.hideNavbar;
 
-    if (newIsWide !== this.isWide || newIsHideToolbar !== this.isHideToolbar || newIsHideNavbar !== this.isHideNavbar) {
+    if (
+      newIsWide !== this.isWide
+      || newWideWidthPercent !== this.wideWidthPercent
+      || newIsHideToolbar !== this.isHideToolbar
+      || newIsHideNavbar !== this.isHideNavbar
+    ) {
       this.isWide = newIsWide;
+      this.wideWidthPercent = newWideWidthPercent;
       this.isHideToolbar = newIsHideToolbar;
       this.isHideNavbar = newIsHideNavbar;
       this.applyStyles();
@@ -150,7 +162,7 @@ export class StyleManager {
 
     if (runtime?.styleOwner === 'manager') {
       // Use adapter-specific CSS
-      const wideCSS = runtime.getWideModeCSS(this.isWide);
+      const wideCSS = runtime.getWideModeCSS(this.isWide, this.wideWidthPercent);
       const toolbarCSS = runtime.getToolbarCSS(this.isHideToolbar);
       // 导航栏隐藏样式仅在双栏模式下应用
       const navbarCSS = ((isDoubleColumn || runtime.isPaginated?.()) && runtime.getNavbarCSS)

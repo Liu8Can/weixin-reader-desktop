@@ -114,7 +114,7 @@ describe('StyleManager ownership and cleanup', () => {
 
     settingsStore.get = () => baseSettings({ readerWide: false, hideToolbar: false });
     settingsListener?.(settingsStore.get());
-    expect(runtime.getWideModeCSS).toHaveBeenLastCalledWith(false);
+    expect(runtime.getWideModeCSS).toHaveBeenLastCalledWith(false, 90);
     expect(runtime.getToolbarCSS).toHaveBeenLastCalledWith(false);
 
     window.dispatchEvent(new CustomEvent('ipc:route-changed', {
@@ -149,6 +149,19 @@ describe('StyleManager ownership and cleanup', () => {
     managerOwned.setDoubleColumn(false);
     SiteContext.getInstance().startObserving();
     expect(document.getElementById('wxrd-hide-navbar')?.textContent).toBe('');
+  });
+
+  it('reapplies manager styles when the wide width changes', () => {
+    const { runtime } = createRuntime('manager');
+    const registry = PluginRegistry.getInstance();
+    registry.register(runtime);
+    registry.setActivePlugin(runtime.id);
+    manager = new StyleManager();
+
+    settingsStore.get = () => baseSettings({ wideWidthPercent: 94 });
+    settingsListener?.(settingsStore.get());
+
+    expect(runtime.getWideModeCSS).toHaveBeenLastCalledWith(true, 94);
   });
 
   it('removes media, settings and site subscriptions during destroy', () => {

@@ -29,8 +29,9 @@ export interface ReadingSiteAdapter {
   /**
    * 获取宽屏模式 CSS
    * @param wide true=宽屏, false=窄屏
+   * @param wideWidthPercent 宽屏正文目标宽度（百分比，可选）
    */
-  getWideModeCSS(wide: boolean): string;
+  getWideModeCSS(wide: boolean, wideWidthPercent?: number): string;
 
   /**
    * 获取工具栏显示/隐藏 CSS
@@ -197,7 +198,7 @@ export abstract class BaseSiteAdapter implements ReadingSiteAdapter {
   // 子类必须实现的抽象方法
   abstract isReaderPage(): boolean;
   abstract isHomePage(): boolean;
-  abstract getWideModeCSS(wide: boolean): string;
+  abstract getWideModeCSS(wide: boolean, wideWidthPercent?: number): string;
   abstract getToolbarCSS(hide: boolean): string;
   abstract nextPage(): void;
   abstract prevPage(): void;

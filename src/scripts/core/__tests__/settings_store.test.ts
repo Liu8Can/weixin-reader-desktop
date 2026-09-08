@@ -108,10 +108,12 @@ describe('SettingsStore', () => {
     await Promise.all([
       store.updateGlobal({ hideCursor: true }),
       store.updateSite('unknown', { readerWide: true }),
+      store.updateSite('unknown', { wideWidthPercent: 94 }),
     ]);
     expect(maxInFlight).toBe(1);
     expect(backend.global.hideCursor).toBe(true);
     expect(backend.sites.unknown.readerWide).toBe(true);
+    expect(backend.sites.unknown.wideWidthPercent).toBe(94);
   });
 
   it('refreshes after a conflict and retries the original patch once', async () => {
@@ -218,6 +220,7 @@ describe('SettingsStore', () => {
     await store.update({
       hideCursor: true,
       readerWide: true,
+      wideWidthPercent: 96,
       global: { autoUpdate: false },
       sites: { another: { hideNavbar: true } },
       pluginConfigs: { demo: { custom: 'value' } },
@@ -225,6 +228,7 @@ describe('SettingsStore', () => {
 
     expect(backend.global).toMatchObject({ hideCursor: true, autoUpdate: false });
     expect(backend.sites.unknown.readerWide).toBe(true);
+    expect(backend.sites.unknown.wideWidthPercent).toBe(96);
     expect(backend.sites.another.hideNavbar).toBe(true);
     expect(backend.pluginConfigs.demo).toEqual({ custom: 'value' });
   });

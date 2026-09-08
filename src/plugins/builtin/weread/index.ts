@@ -24,7 +24,7 @@ const STYLES = {
       body:has(.readerControls[is-horizontal="true"]) .readerChapterContent,
       .app_content {
         width: 90% !important;
-        max-width: calc(100vw - 224px) !important;
+        max-width: calc(100vw) !important;
       }
       body:has(.readerControls:not([is-horizontal="true"])) .readerControls {
         margin-left: calc(50vw - 80px) !important;
@@ -50,17 +50,12 @@ const STYLES = {
       .readerTopBar,
       .app_content,
       body:has(.readerControls[is-horizontal="true"]) .readerChapterContent {
-        max-width: calc(100vw - 124px) !important;
+        /* max-width: calc(100vw - 124px) !important; */
       }
     `,
     disabled: `
       .readerControls {
         display: block !important;
-      }
-      .readerTopBar,
-      .app_content,
-      body:has(.readerControls[is-horizontal="true"]) .readerChapterContent {
-        max-width: calc(100vw - 224px) !important;
       }
     `,
   },

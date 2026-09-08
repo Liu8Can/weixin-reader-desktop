@@ -305,6 +305,7 @@ if (settings.readerWide === true && wideCss) {
 `api.settings.getAll()` 返回当前站点显示设置与插件自定义配置的合并视图。常用显示字段：
 
 - `readerWide`
+- `wideWidthPercent`
 - `hideToolbar`
 - `hideNavbar`
 

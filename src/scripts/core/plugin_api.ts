@@ -97,7 +97,7 @@ const createStyleAPI = (
  * 显示设置存储在 sites.[pluginId]，插件自定义设置存储在 pluginConfigs.[pluginId]
  */
 const createSettingsAPI = (pluginId: string): SettingsAPI => {
-  const siteKeys = new Set(['zoom', 'readerWide', 'hideToolbar', 'hideNavbar']);
+  const siteKeys = new Set(['zoom', 'readerWide', 'wideWidthPercent', 'hideToolbar', 'hideNavbar']);
   const getMerged = (): Record<string, any> => ({
     ...settingsStore.getPluginConfig(pluginId),
     ...settingsStore.getSite(pluginId),

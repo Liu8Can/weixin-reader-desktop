@@ -869,7 +869,7 @@ class LocalReader implements LocalReaderController {
         p { margin-block: 0 ${this.typography.paragraphSpacing}em !important; text-align: justify; }
         h1, h2, h3 { break-after: avoid; line-height: 1.45; }
         img, svg, video { max-width: 100% !important; max-height: 100% !important; object-fit: contain; }
-        a { color: ${dark ? '#80b294' : '#4d8262'}; }
+        a { color: ${dark ? '#60c38e' : '#349f66'}; }
       `;
       this.renderer.setStyles?.(style);
     }

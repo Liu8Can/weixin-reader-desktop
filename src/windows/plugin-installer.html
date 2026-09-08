@@ -12,8 +12,8 @@
       --text: #172033;
       --muted: #657089;
       --border: #dfe4ee;
-      --accent: #2f6fed;
-      --accent-hover: #245dcc;
+      --accent: #349f66;
+      --accent-hover: #297f51;
       --warning: #a15c00;
       --warning-bg: #fff5df;
       --danger: #b42318;
@@ -28,8 +28,8 @@
         --text: #edf1f8;
         --muted: #aab2c2;
         --border: #414754;
-        --accent: #78a7ff;
-        --accent-hover: #98bbff;
+        --accent: #60c38e;
+        --accent-hover: #7acda0;
         --warning: #ffd18a;
         --warning-bg: #473719;
         --danger: #ffb4aa;
@@ -43,7 +43,7 @@
       margin: 0;
       min-height: 100vh;
       background:
-        radial-gradient(circle at 90% -10%, rgba(47, 111, 237, .15), transparent 38%),
+        radial-gradient(circle at 90% -10%, rgba(52, 159, 102, .15), transparent 38%),
         var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -78,8 +78,8 @@
       width: 76px;
       height: 76px;
       border-radius: 18px;
-      background: linear-gradient(145deg, #eef3ff, #e1e9fb);
-      border: 1px solid rgba(47, 111, 237, .16);
+      background: linear-gradient(145deg, #edf7f1, #e0f1e8);
+      border: 1px solid rgba(52, 159, 102, .16);
       display: grid;
       place-items: center;
       overflow: hidden;
@@ -101,7 +101,7 @@
     .value { overflow-wrap: anywhere; }
     .domains { display: flex; gap: 6px; flex-wrap: wrap; }
     .domain {
-      background: rgba(47, 111, 237, .10);
+      background: rgba(52, 159, 102, .10);
       color: var(--accent);
       border-radius: 999px;
       padding: 3px 9px;
@@ -190,7 +190,7 @@
       const listen = tauri?.event?.listen;
       const currentWindow = tauri?.window?.getCurrentWindow?.();
       const fallbackIcon = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="#e7edfa"/><path fill="#5474ad" d="M69 45h-8V29a5 5 0 0 0-5-5H41v7a8 8 0 1 1-16 0v-7h-1a5 5 0 0 0-5 5v16h8a8 8 0 1 1 0 16h-8v6a5 5 0 0 0 5 5h15v-7a8 8 0 1 1 16 0v7h1a5 5 0 0 0 5-5v-6h8a8 8 0 1 0 0-16Z"/></svg>'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="#e7f3ec"/><path fill="#349f66" d="M69 45h-8V29a5 5 0 0 0-5-5H41v7a8 8 0 1 1-16 0v-7h-1a5 5 0 0 0-5 5v16h8a8 8 0 1 1 0 16h-8v6a5 5 0 0 0 5 5h15v-7a8 8 0 1 1 16 0v7h1a5 5 0 0 0 5-5v-6h8a8 8 0 1 0 0-16Z"/></svg>'
       );
       let preview = null;
       let installing = false;

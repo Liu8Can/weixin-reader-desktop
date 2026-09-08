@@ -927,7 +927,7 @@ fn build_app_menu<R: Runtime>(
         "隐藏阅读导航栏",
         true,
         initial.hide_navbar,
-        None::<&str>,
+        Some("CmdOrCtrl+P"),
     )?;
     #[cfg(target_os = "macos")]
     let fullscreen = PredefinedMenuItem::fullscreen(handle, Some("切换全屏"))?;

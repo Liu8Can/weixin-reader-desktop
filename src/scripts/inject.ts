@@ -47,6 +47,7 @@ async function main(): Promise<void> {
     '9': 'reader_wide',
     '8': 'hide_cursor',
     'o': 'hide_toolbar',
+    'p': 'hide_navbar',
   };
 
   window.addEventListener('keydown', (e: KeyboardEvent) => {

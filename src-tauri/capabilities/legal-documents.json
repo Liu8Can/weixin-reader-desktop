@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "legal-documents",
-  "description": "Static privacy and terms windows without application commands",
-  "windows": ["privacy", "terms"],
+  "description": "Static legal windows (privacy, terms) and the open-source licenses page without application commands",
+  "windows": ["privacy", "terms", "licenses"],
   "permissions": [
     "core:default"
   ]

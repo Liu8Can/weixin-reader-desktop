@@ -190,7 +190,7 @@ describe('Tauri application contracts', () => {
       settings: ['settings'],
       'plugin-editor': ['plugin-editor'],
       'plugin-installer': ['plugin-installer'],
-      'legal-documents': ['privacy', 'terms'],
+      'legal-documents': ['privacy', 'terms', 'licenses'],
     });
     expect(capabilities[0].remote?.urls).toEqual(['https://*', 'http://*']);
     expect(capabilities.slice(1).every(item => item.remote === undefined)).toBe(true);
@@ -262,9 +262,10 @@ describe('Tauri application contracts', () => {
     expect(simulatedActions).not.toContain('"install_update_now"');
     expect(menu).toContain('Some("CmdOrCtrl+Shift+O")');
     expect(menu).toContain('Some("CmdOrCtrl+O")');
+    expect(menu).toContain('Some("CmdOrCtrl+P")');
     expect(inject).toContain("'o': 'hide_toolbar'");
+    expect(inject).toContain("'p': 'hide_navbar'");
     expect(inject).toContain("? 'open_local_book'");
-    expect(inject).not.toContain("'p': 'hide_navbar'");
     expect(localReader).toContain("o: 'hide_toolbar'");
     expect(localReader).toContain("? 'open_local_book'");
     expect(localReader).not.toContain("p: 'hide_navbar'");

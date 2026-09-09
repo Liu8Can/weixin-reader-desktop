@@ -106,6 +106,9 @@ pub fn set_menu_item_enabled(
         }
     }
     crate::menu_model::set_reader_action_enabled(&id, enabled);
+    if id == "reader_wide" {
+        crate::menu::set_reader_wide_menu_visible(&app, enabled);
+    }
     let mut found = false;
     if let Some(menu) = app.menu() {
         if let Ok(items) = menu.items() {
@@ -122,7 +125,7 @@ pub fn set_menu_item_enabled(
         }
     }
 
-    if !found && id != "hide_cursor" {
+    if !found && id != "hide_cursor" && id != "reader_wide" {
         eprintln!(
             "[Menu] set_menu_item_enabled: NOT FOUND - id={}, enabled={}",
             id, enabled

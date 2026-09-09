@@ -172,6 +172,8 @@ export class MenuManager {
         }
       : this.siteContext.currentRuntime?.manifest.capabilities;
     const capWide = caps?.wideMode === true;
+    const readerMenuItems = this.siteContext.currentRuntime?.getReaderMenuItems?.();
+    const showWideMenu = readerMenuItems?.includes('reader_wide') ?? true;
     const capToolbar = caps?.hideToolbar === true;
     const capNavbar = caps?.hideNavbar === true;
     const runtime = this.siteContext.currentRuntime;
@@ -184,7 +186,7 @@ export class MenuManager {
     const capStyle = this.siteContext.currentRuntime?.canOpenReadingStyle?.() === true;
 
     await this.applyMenuEnabledStatus({
-      readerWide: capWide,
+      readerWide: capWide && showWideMenu,
       hideToolbar: capToolbar,
       hideNavbar: capNavbar,
       hideCursor: caps?.hideCursor === true,

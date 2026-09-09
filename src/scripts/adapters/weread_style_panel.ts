@@ -140,7 +140,7 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     </div>
     <div class="wxrd-panel-section">
       <div class="wxrd-field">
-        <span>宽度值 <output data-output="wideWidthPercent"></output></span>
+        <span>阅读宽度 <output data-output="wideWidthPercent"></output></span>
         <input type="range" data-key="wideWidthPercent" min="${MIN_WIDE_WIDTH_PERCENT}" max="${MAX_WIDE_WIDTH_PERCENT}" step="2">
       </div>
     </div>
@@ -209,9 +209,20 @@ const mountPanel = (api: PluginAPI): (() => void) => {
 
   panel.querySelectorAll<HTMLInputElement>('input[type="range"][data-key]').forEach(slider => {
     const key = slider.dataset.key!;
+    slider.addEventListener('input', () => {
+      if (key !== 'wideWidthPercent') return;
+      const output = panel.querySelector(`[data-output="${key}"]`);
+      if (output) output.textContent = `${slider.value}%`;
+    });
     // change（松手）才写入：微信读书重分页成本高，拖动中不反复触发 resize
     slider.addEventListener('change', () => {
-      void settings.set(key, Number(slider.value));
+      const value = Number(slider.value);
+      if (key === 'wideWidthPercent') {
+        // 滑块代表显式选择；先保存目标值，再开启自定义宽度，避免开关关闭时静默无效
+        void settings.set(key, value).then(() => settings.set('readerWide', true));
+        return;
+      }
+      void settings.set(key, value);
     });
   });
 
@@ -220,6 +231,7 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     void settings.set('whiteText', false)
       .then(() => settings.set('whiteTextBrightness', 1.35))
       .then(() => settings.set('whiteTextBackground', null))
+      .then(() => settings.set('readerWide', false))
       .then(() => settings.set('wideWidthPercent', DEFAULT_WIDE_WIDTH_PERCENT))
       .then(() => settings.set('lineHeight', null))
       .then(() => settings.set('paragraphSpacing', null));
@@ -319,11 +331,13 @@ const mountPanel = (api: PluginAPI): (() => void) => {
       slider.value = String(value);
       const output = panel.querySelector(`[data-output="${key}"]`);
       if (output) {
-        output.textContent = key === 'paragraphSpacing'
-          ? `${value}em`
-          : key === 'wideWidthPercent'
-            ? `${value}%`
-            : String(value);
+        output.textContent = key === 'wideWidthPercent' && config.readerWide !== true
+          ? '默认'
+          : key === 'paragraphSpacing'
+            ? `${value}em`
+            : key === 'wideWidthPercent'
+              ? `${value}%`
+              : String(value);
       }
     });
   };

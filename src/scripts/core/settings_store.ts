@@ -5,7 +5,7 @@ import { createSiteContext } from './site_context';
 export interface SiteSettings {
   zoom?: number;
   readerWide?: boolean;
-  /** 微信读书宽屏正文目标宽度（百分比，82-98，步进 2） */
+  /** 微信读书自定义正文目标宽度（视口百分比，40-98，步进 2） */
   wideWidthPercent?: number;
   hideToolbar?: boolean;
   hideNavbar?: boolean;

@@ -47,16 +47,22 @@ export class WeReadAdapter extends BaseSiteAdapter {
   getWideModeCSS(wide: boolean, wideWidthPercent?: number): string {
     const wideWidth = normalizeWideWidthPercent(wideWidthPercent);
     if (wide) {
+      const normalReaderWidth = `calc(${wideWidth}vw + 200px)`;
+      const toolbarOffset = `calc(${wideWidth / 2}vw + 148px)`;
       return `
-        /* 微信读书 - 宽屏模式 */
-        .readerTopBar,
-        body:has(.readerControls[is-horizontal="true"]) .readerChapterContent,
-        .app_content {
-          width: ${wideWidth}% !important;
-          max-width: calc(100vw) !important;
+        /* 微信读书 - 自定义阅读宽度 */
+        html body .readerContent > .app_content:not(.app_content_in_reader),
+        html body .readerContent > .app_content:not(.app_content_in_reader) > .readerTopBar {
+          width: min(${normalReaderWidth}, calc(100vw - 224px)) !important;
+          max-width: min(${normalReaderWidth}, calc(100vw - 224px)) !important;
         }
-        body:has(.readerControls:not([is-horizontal="true"])) .readerControls {
-          margin-left: calc(50vw - 80px) !important;
+        html body .wr_horizontalReader_app_content > .readerTopBar,
+        html body .wr_horizontalReader_app_content .readerChapterContent {
+          width: min(${wideWidth}vw, calc(100vw - 224px)) !important;
+          max-width: min(${wideWidth}vw, calc(100vw - 224px)) !important;
+        }
+        html body:has(.readerControls:not([is-horizontal="true"])) .readerControls {
+          margin-left: min(${toolbarOffset}, calc(50vw - 72px)) !important;
         }
       `;
     } else {
@@ -324,6 +330,6 @@ export class WeReadAdapter extends BaseSiteAdapter {
   // ==================== 菜单项 ====================
 
   getReaderMenuItems(): string[] {
-    return ['reader_wide', 'hide_toolbar', 'auto_flip'];
+    return ['hide_toolbar', 'auto_flip'];
   }
 }

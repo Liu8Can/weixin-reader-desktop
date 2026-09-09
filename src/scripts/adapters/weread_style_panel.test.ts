@@ -59,16 +59,16 @@ describe('WeRead 纯白正文背景黑度', () => {
     expect(css).toContain('background-color: #16171a !important');
   });
 
-  it('宽度值默认 90%，范围为 82% 到 98%，步进为 2%', () => {
+  it('阅读宽度默认关闭，可在 40% 到 98% 间按 2% 调节', () => {
     const context = createAPI();
     teardown = setupStylePanel(context.api);
 
     const slider = document.querySelector<HTMLInputElement>('input[data-key="wideWidthPercent"]');
-    expect(slider?.min).toBe('82');
+    expect(slider?.min).toBe('40');
     expect(slider?.max).toBe('98');
     expect(slider?.step).toBe('2');
     expect(slider?.value).toBe('90');
-    expect(document.querySelector('[data-output="wideWidthPercent"]')?.textContent).toBe('90%');
+    expect(document.querySelector('[data-output="wideWidthPercent"]')?.textContent).toBe('默认');
   });
 
   it('宽度值位于纯白正文下方、行间距上方', () => {
@@ -78,20 +78,23 @@ describe('WeRead 纯白正文背景黑度', () => {
     const sections = Array.from(document.querySelectorAll('.wxrd-panel-section'))
       .map(section => section.textContent ?? '');
     expect(sections[0]).toContain('纯白正文');
-    expect(sections[1]).toContain('宽度值');
+    expect(sections[1]).toContain('阅读宽度');
     expect(sections[2]).toContain('行间距');
   });
 
-  it('宽度值变更后持久化为站点设置', async () => {
+  it('拖动时即时回显，松手后保存并启用自定义宽度', async () => {
     const context = createAPI();
     teardown = setupStylePanel(context.api);
 
     const slider = document.querySelector<HTMLInputElement>('input[data-key="wideWidthPercent"]')!;
-    slider.value = '94';
+    slider.value = '60';
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.querySelector('[data-output="wideWidthPercent"]')?.textContent).toBe('60%');
     slider.dispatchEvent(new Event('change', { bubbles: true }));
     await new Promise(resolve => setTimeout(resolve, 0));
 
-    expect(context.set).toHaveBeenCalledWith('wideWidthPercent', 94);
+    expect(context.set).toHaveBeenCalledWith('wideWidthPercent', 60);
+    expect(context.set).toHaveBeenCalledWith('readerWide', true);
   });
 
   it('注入的样式所有层同色同圆角，无直角缺口', () => {
@@ -144,5 +147,6 @@ describe('WeRead 纯白正文背景黑度', () => {
 
     expect(context.set).toHaveBeenCalledWith('whiteTextBackground', null);
     expect(context.set).toHaveBeenCalledWith('wideWidthPercent', 90);
+    expect(context.set).toHaveBeenCalledWith('readerWide', false);
   });
 });

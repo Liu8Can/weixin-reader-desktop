@@ -45,7 +45,6 @@ async function main(): Promise<void> {
     '-': 'zoom_out',
     '0': 'zoom_reset',
     '9': 'reader_wide',
-    '8': 'hide_cursor',
     'o': 'hide_toolbar',
     'p': 'hide_navbar',
   };

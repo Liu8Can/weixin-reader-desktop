@@ -48,15 +48,21 @@ export class WeReadAdapter extends BaseSiteAdapter {
     const wideWidth = normalizeWideWidthPercent(wideWidthPercent);
     if (wide) {
       return `
-        /* 微信读书 - 宽屏模式 */
-        .readerTopBar,
-        body:has(.readerControls[is-horizontal="true"]) .readerChapterContent,
-        .app_content {
-          width: ${wideWidth}% !important;
-          max-width: calc(100vw) !important;
+        /* 微信读书 - 自定义阅读宽度 */
+        html body .readerContent > .app_content:not(.app_content_in_reader),
+        html body .readerContent > .app_content:not(.app_content_in_reader) > .readerTopBar {
+          width: ${wideWidth}vw !important;
+          max-width: ${wideWidth}vw !important;
         }
-        body:has(.readerControls:not([is-horizontal="true"])) .readerControls {
-          margin-left: calc(50vw - 80px) !important;
+        html body .wr_horizontalReader_app_content > .readerTopBar,
+        html body .wr_horizontalReader_app_content .readerChapterContent {
+          width: ${wideWidth}vw !important;
+          max-width: ${wideWidth}vw !important;
+        }
+        html body .readerControls {
+          left: auto !important;
+          right: 24px !important;
+          margin-left: 0 !important;
         }
       `;
     } else {

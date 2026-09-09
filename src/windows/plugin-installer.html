@@ -14,6 +14,7 @@
       --border: #dfe4ee;
       --accent: #349f66;
       --accent-hover: #297f51;
+      --accent-button: #297f51;
       --warning: #a15c00;
       --warning-bg: #fff5df;
       --danger: #b42318;
@@ -30,6 +31,7 @@
         --border: #414754;
         --accent: #60c38e;
         --accent-hover: #7acda0;
+        --accent-button: #297f51;
         --warning: #ffd18a;
         --warning-bg: #473719;
         --danger: #ffb4aa;
@@ -140,8 +142,8 @@
       cursor: pointer;
     }
     .cancel { background: var(--card); color: var(--text); }
-    .install { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 126px; }
-    .install:hover:not(:disabled) { background: var(--accent-hover); }
+    .install { background: var(--accent-button); border-color: var(--accent-button); color: #fff; min-width: 126px; }
+    .install:hover:not(:disabled) { filter: brightness(1.12); }
     button:disabled { opacity: .48; cursor: not-allowed; }
     .loading { padding: 70px 24px; text-align: center; color: var(--muted); }
     [hidden] { display: none !important; }

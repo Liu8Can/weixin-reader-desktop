@@ -4,15 +4,26 @@ import { WeReadAdapter } from './weread_adapter';
 const createAdapter = (): WeReadAdapter => Object.create(WeReadAdapter.prototype) as WeReadAdapter;
 
 describe('WeReadAdapter 宽屏宽度', () => {
-  it('同步调整正文画布、顶部栏和工具栏位置', () => {
+  it('同步调整正文画布和顶部栏，并将工具栏固定在视口右侧', () => {
     const css = createAdapter().getWideModeCSS(true, 60);
 
     expect(css).toContain('.readerContent > .app_content:not(.app_content_in_reader)');
-    expect(css).toContain('width: min(calc(60vw + 200px), calc(100vw - 224px)) !important');
+    expect(css).toContain('width: 60vw !important');
     expect(css).toContain('.wr_horizontalReader_app_content .readerChapterContent');
-    expect(css).toContain('width: min(60vw, calc(100vw - 224px)) !important');
-    expect(css).toContain('margin-left: min(calc(30vw + 148px), calc(50vw - 72px)) !important');
+    expect(css).toContain('right: 24px !important');
+    expect(css).toContain('left: auto !important');
+    expect(css).toContain('margin-left: 0 !important');
     expect(css).not.toContain('html body .app_content,');
+    expect(css).not.toContain('calc(100vw - 224px)');
+    expect(css).not.toContain('min(');
+  });
+
+  it('40% 到 98% 的滑块值均生成真实且不同的视口宽度', () => {
+    const adapter = createAdapter();
+
+    for (const width of [40, 76, 90, 98]) {
+      expect(adapter.getWideModeCSS(true, width)).toContain(`width: ${width}vw !important`);
+    }
   });
 
   it('缺失或非法值回退到 90%', () => {
@@ -45,7 +56,7 @@ describe('WeReadAdapter 宽屏宽度', () => {
     expect(activeCSS).not.toContain('max-width: calc(100vw - 124px)');
   });
 
-  it('阅读宽度由样式滑块控制，不再显示宽屏模式菜单', () => {
-    expect(createAdapter().getReaderMenuItems()).not.toContain('reader_wide');
+  it('保留宽屏模式菜单作为恢复默认布局的入口', () => {
+    expect(createAdapter().getReaderMenuItems()).toContain('reader_wide');
   });
 });

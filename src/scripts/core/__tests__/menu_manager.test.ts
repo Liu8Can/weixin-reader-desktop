@@ -221,22 +221,6 @@ describe('MenuManager behavior', () => {
     }
   });
 
-  it('disables the redundant wide-mode menu when the runtime uses a width slider', async () => {
-    const invokeMock = window.__TAURI__.core.invoke as ReturnType<typeof mock>;
-    const manager = createBareManager('weread', true);
-    (manager as any).siteContext.currentRuntime.getReaderMenuItems = () => [
-      'hide_toolbar',
-      'auto_flip',
-    ];
-
-    await (manager as any).updateMenuEnabledStatus('reader');
-
-    expect(invokeMock).toHaveBeenCalledWith('set_menu_item_enabled', {
-      id: 'reader_wide',
-      enabled: false,
-    });
-  });
-
   it('leaves reader features disabled after a reader-to-home transition', async () => {
     const invokeMock = mock(async (_command: string, _args?: Record<string, any>) => undefined);
     window.__TAURI__.core.invoke = invokeMock as any;

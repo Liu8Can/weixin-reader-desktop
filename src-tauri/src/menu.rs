@@ -268,47 +268,6 @@ pub fn set_edit_menu_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) {
     }
 }
 
-/// 微信读书已有阅读宽度滑块，隐藏重复的宽屏开关；其他阅读器仍可按能力恢复。
-pub fn set_reader_wide_menu_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) {
-    let Some(menu) = app.menu() else { return };
-    let Ok(top_items) = menu.items() else { return };
-    let Some(view_menu) = top_items.iter().find_map(|item| {
-        item.as_submenu()
-            .filter(|submenu| submenu.id().as_ref() == menu_id::VIEW)
-    }) else {
-        return;
-    };
-    let Ok(items) = view_menu.items() else { return };
-    let wide_index = items
-        .iter()
-        .position(|item| item.id().as_ref() == "reader_wide");
-
-    match (visible, wide_index) {
-        (false, Some(index)) => {
-            let _ = view_menu.remove_at(index);
-        }
-        (true, None) => {
-            let insert_at = items
-                .iter()
-                .position(|item| item.id().as_ref() == "hide_toolbar")
-                .unwrap_or(items.len());
-            let checked = get_initial_settings(app).reader_wide;
-            let Ok(item) = CheckMenuItem::with_id(
-                app,
-                "reader_wide",
-                "宽屏阅读",
-                true,
-                checked,
-                Some("CmdOrCtrl+9"),
-            ) else {
-                return;
-            };
-            let _ = view_menu.insert(&item, insert_at);
-        }
-        _ => {}
-    }
-}
-
 /// 获取已安装插件的网站菜单项
 fn get_plugin_site_items<R: Runtime>(handle: &tauri::AppHandle<R>) -> Vec<PluginSiteMenuItem> {
     let mut items = Vec::new();

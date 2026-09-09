@@ -11,6 +11,7 @@
  * - Settings store changes - Apply styles when settings change
  */
 
+import { getCurrentWindow, type Theme } from '@tauri-apps/api/window';
 import { injectCSS, removeCSS } from '../core/utils';
 import {
   DEFAULT_WIDE_WIDTH_PERCENT,
@@ -34,6 +35,8 @@ export class StyleManager {
   private legacyRouteChangedHandler: ((e: Event) => void) | null = null;
   private darkModeQuery: MediaQueryList | null = null;
   private darkModeHandler: ((e: MediaQueryListEvent | MediaQueryList) => void) | null = null;
+  private pageThemeObserver: MutationObserver | null = null;
+  private lastWindowTheme: Theme | undefined;
   private unsubscribeSettings: (() => void) | null = null;
   private unsubscribeDoubleColumn: (() => void) | null = null;
 
@@ -119,6 +122,7 @@ export class StyleManager {
           : 'html, body { background-color: #f4f5f7 !important; }';
         injectCSS('wxrd-base-bg', defaultCSS);
       }
+      this.syncWindowTheme();
     };
 
     // Initial check
@@ -127,6 +131,40 @@ export class StyleManager {
 
     // Listen for changes
     this.darkModeQuery.addEventListener('change', this.darkModeHandler);
+
+    if (document.body) {
+      this.pageThemeObserver = new MutationObserver(() => this.syncWindowTheme());
+      this.pageThemeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class'],
+      });
+    }
+  }
+
+  private currentWindowTheme(): Theme | undefined {
+    if (this.siteContext.siteId !== 'weread') return undefined;
+    return document.body?.classList.contains('wr_whiteTheme') ? 'light' : 'dark';
+  }
+
+  private syncWindowTheme(): void {
+    if (window.self !== window.top || !window.__TAURI__) return;
+    const theme = this.currentWindowTheme();
+    if (!theme) return;
+    if (theme === this.lastWindowTheme) return;
+    this.lastWindowTheme = theme;
+    this.setWindowTheme(theme);
+  }
+
+  private setWindowTheme(theme: Theme | null): void {
+    try {
+      void getCurrentWindow().setTheme(theme).catch((error) => {
+        if (this.lastWindowTheme === theme) this.lastWindowTheme = undefined;
+        log.debug('[StyleManager] Failed to sync native window theme', error);
+      });
+    } catch (error) {
+      if (this.lastWindowTheme === theme) this.lastWindowTheme = undefined;
+      log.debug('[StyleManager] Failed to sync native window theme', error);
+    }
   }
 
   private updateStyles(settings: MergedSettings) {
@@ -206,6 +244,8 @@ export class StyleManager {
       this.darkModeQuery = null;
       this.darkModeHandler = null;
     }
+    this.pageThemeObserver?.disconnect();
+    this.pageThemeObserver = null;
     this.unsubscribeSettings?.();
     this.unsubscribeSettings = null;
     this.unsubscribeDoubleColumn?.();
@@ -214,5 +254,9 @@ export class StyleManager {
     // Clean up injected styles
     this.clearReaderStyles();
     removeCSS('wxrd-base-bg');
+    if (window.self === window.top && window.__TAURI__ && this.lastWindowTheme) {
+      this.lastWindowTheme = undefined;
+      this.setWindowTheme(null);
+    }
   }
 }

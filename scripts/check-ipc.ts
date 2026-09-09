@@ -1,6 +1,13 @@
 export {};
 
 const read = (path: string) => Bun.file(path).text();
+type PermissionEntry = string | {
+  identifier: string;
+  allow?: Array<Record<string, unknown>>;
+};
+const permissionIdentifier = (permission: PermissionEntry): string =>
+  typeof permission === 'string' ? permission : permission.identifier;
+
 const [buildSource, libSource, tauriConfig] = await Promise.all([
   read('src-tauri/build.rs'),
   read('src-tauri/src/lib.rs'),
@@ -24,28 +31,25 @@ const capabilityFiles = [
 ];
 const capabilityCommands = new Set<string>();
 const capabilityIdentifiers = new Set<string>();
-let mainRuntimePermissions: string[] = [];
-let localReaderPermissions: string[] = [];
+let mainRuntimePermissions: PermissionEntry[] = [];
+let localReaderPermissions: PermissionEntry[] = [];
 for (const file of capabilityFiles) {
   const capability = await Bun.file(file).json() as {
     identifier?: string;
-    permissions?: unknown[];
+    permissions?: PermissionEntry[];
     windows?: string[];
   };
   if (capability.identifier) capabilityIdentifiers.add(capability.identifier);
   if (file.endsWith('main-runtime.json')) {
-    mainRuntimePermissions = (capability.permissions ?? []).filter(
-      (permission): permission is string => typeof permission === 'string',
-    );
+    mainRuntimePermissions = capability.permissions ?? [];
   }
   if (file.endsWith('local-reader.json')) {
-    localReaderPermissions = (capability.permissions ?? []).filter(
-      (permission): permission is string => typeof permission === 'string',
-    );
+    localReaderPermissions = capability.permissions ?? [];
   }
   for (const permission of capability.permissions ?? []) {
-    if (typeof permission === 'string' && permission.startsWith('allow-')) {
-      capabilityCommands.add(permission.slice(6).replaceAll('-', '_'));
+    const identifier = permissionIdentifier(permission);
+    if (identifier.startsWith('allow-')) {
+      capabilityCommands.add(identifier.slice(6).replaceAll('-', '_'));
     }
   }
 }
@@ -79,7 +83,9 @@ if (missingConfiguredCapabilities.length > 0) {
 if (unknownConfiguredCapabilities.length > 0) {
   messages.push(`configured capability file missing: ${unknownConfiguredCapabilities.join(', ')}`);
 }
-const forbiddenMainPermissions = mainRuntimePermissions.filter((permission) =>
+const mainRuntimePermissionIdentifiers = mainRuntimePermissions.map(permissionIdentifier);
+const localReaderPermissionIdentifiers = localReaderPermissions.map(permissionIdentifier);
+const forbiddenMainPermissions = mainRuntimePermissionIdentifiers.filter((permission) =>
   /(?:fs|shell|updater|dialog|opener|create)/i.test(permission)
   || /allow-(?:install|uninstall|get-installed|load-plugin-for-edit|save-plugin|export-plugin)/.test(permission)
 );
@@ -93,12 +99,24 @@ if (forbiddenMainPermissions.length > 0) {
 const allowedMainCorePermissions = new Set([
   'core:default',
   'core:event:default',
+  'core:window:allow-set-theme',
 ]);
-const unexpectedMainCorePermissions = mainRuntimePermissions.filter(
+const unexpectedMainCorePermissions = mainRuntimePermissionIdentifiers.filter(
   (permission) => permission.startsWith('core:') && !allowedMainCorePermissions.has(permission),
 );
 if (unexpectedMainCorePermissions.length > 0) {
   messages.push(`unexpected core permission in main-runtime (extend allowlist consciously): ${unexpectedMainCorePermissions.join(', ')}`);
+}
+const setThemePermission = mainRuntimePermissions.find(
+  (permission) => permissionIdentifier(permission) === 'core:window:allow-set-theme',
+);
+const setThemeScope = typeof setThemePermission === 'object' ? setThemePermission.allow : undefined;
+if (
+  !setThemeScope
+  || setThemeScope.length !== 1
+  || setThemeScope[0]?.label !== 'main'
+) {
+  messages.push('main-runtime set-theme permission must allow only label main');
 }
 const expectedMainCommands = new Set([
   'log_to_file',
@@ -119,7 +137,7 @@ const expectedMainCommands = new Set([
   'get_runtime_plugin',
 ]);
 const mainCommands = new Set(
-  mainRuntimePermissions
+  mainRuntimePermissionIdentifiers
     .filter((permission) => permission.startsWith('allow-'))
     .map((permission) => permission.slice(6).replaceAll('-', '_')),
 );
@@ -150,7 +168,7 @@ const expectedLocalCommands = new Set([
   'local_sha1',
 ]);
 const localCommands = new Set(
-  localReaderPermissions
+  localReaderPermissionIdentifiers
     .filter((permission) => permission.startsWith('allow-'))
     .map((permission) => permission.slice(6).replaceAll('-', '_')),
 );

@@ -9,6 +9,10 @@
   "permissions": [
     "core:default",
     "core:event:default",
+    {
+      "identifier": "core:window:allow-set-theme",
+      "allow": [{ "label": "main" }]
+    },
     "allow-log-to-file",
     "allow-update-menu-state",
     "allow-set-menu-item-enabled",

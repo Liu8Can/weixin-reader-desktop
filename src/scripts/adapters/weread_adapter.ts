@@ -50,8 +50,7 @@ export class WeReadAdapter extends BaseSiteAdapter {
           width: ${wideWidth}vw !important;
           max-width: ${wideWidth}vw !important;
         }
-        /* 外贴边仅限横排（双栏）：is-horizontal 标记当前布局；纵向单栏的工具栏
-           定位结构不同，交还原生样式（一直好用） */
+        /* 外贴边仅限横排（双栏）：is-horizontal 标记当前布局 */
         body:has(.readerControls[is-horizontal="true"]) .readerControls {
           left: auto !important;
           /* 外贴边：right 相对正文容器（宽 = 宽度 vw），负值浮到容器右缘外侧的留白区
@@ -59,6 +58,16 @@ export class WeReadAdapter extends BaseSiteAdapter {
              （max），渐进压正文但绝不出屏、保持可点 */
           right: max(-72px, calc(24px - (100 - ${wideWidth}) / 2 * 1vw)) !important;
           margin-left: 0 !important;
+        }
+        /* 纵向（单栏）：原生工具栏定位与正文宽度无耦合，宽屏时不会随 W 变动，
+           正文变宽后被压在文字上。沿用窄屏分支真机校准过的公式并按 W 参数化：
+           W=80 与窄屏公式逐字重合（开关切换不跳变，这一点已由测试锚定）。
+           外推精度依赖「百分比 margin 的包含块 ≈ 视口宽」（未验证，待真机
+           DevTools 校准）；若包含块更窄，误差按 |W-80| 线性放大（约一个
+           工具栏宽@1440px），表现为偏移而非越界/失效。本规则在真机上的
+           实际效果未经校准，v1.8.2-dev.2 起由用户真机验证。 */
+        body:has(.readerControls:not([is-horizontal="true"])) .readerControls {
+          margin-left: calc(${wideWidth / 2}% + 40px) !important;
         }
       `;
     } else {

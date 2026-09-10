@@ -155,9 +155,17 @@ describe('WeRead 纯白正文背景黑度', () => {
     document.querySelector<HTMLButtonElement>('[data-action="reset-spacing"]')?.click();
     await new Promise(resolve => setTimeout(resolve, 0));
 
-    expect(context.set).toHaveBeenCalledWith('whiteTextBackground', null);
-    expect(context.set).toHaveBeenCalledWith('wideWidthPercent', 80);
-    expect(context.set).toHaveBeenCalledWith('readerWide', false);
+    // 单次 setMany 提交全部 8 个键（替代 7 步链式 set）：任一环失败
+    // 会留下部分应用状态且后续跳过
+    expect(context.setMany).toHaveBeenCalledTimes(1);
+    const patch = context.setMany.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(patch).toMatchObject({
+      whiteText: false,
+      whiteTextBackground: null,
+      wideWidthPercent: 80,
+      readerWide: false,
+    });
+    expect(context.set).not.toHaveBeenCalled();
   });
 
   describe('WeRead 底部进度条高度', () => {
@@ -228,7 +236,8 @@ describe('WeRead 纯白正文背景黑度', () => {
       document.querySelector<HTMLButtonElement>('[data-action="reset-spacing"]')?.click();
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(context.set).toHaveBeenCalledWith('progressBarHeight', null);
+      const patch = context.setMany.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(patch?.progressBarHeight).toBeNull();
     });
   });
 });

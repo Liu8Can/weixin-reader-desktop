@@ -246,15 +246,19 @@ const mountPanel = (api: PluginAPI): (() => void) => {
   });
 
   panel.querySelector('[data-action="reset-spacing"]')?.addEventListener('click', () => {
-    // 恢复默认 = 清空本面板全部设置（含纯白正文），回到微信读书原生观感
-    void settings.set('whiteText', false)
-      .then(() => settings.set('whiteTextBrightness', 1.35))
-      .then(() => settings.set('whiteTextBackground', null))
-      .then(() => settings.set('readerWide', false))
-      .then(() => settings.set('wideWidthPercent', DEFAULT_WIDE_WIDTH_PERCENT))
-      .then(() => settings.set('progressBarHeight', null))
-      .then(() => settings.set('lineHeight', null))
-      .then(() => settings.set('paragraphSpacing', null));
+    // 恢复默认 = 清空本面板全部设置（含纯白正文），回到微信读书原生观感。
+    // 单次 setMany（site 段一写 + config 段一写）替代 7 步链式 set：
+    // 链上任一环失败会留下部分应用状态且后续全部跳过
+    void settings.setMany({
+      whiteText: false,
+      whiteTextBrightness: 1.35,
+      whiteTextBackground: null,
+      readerWide: false,
+      wideWidthPercent: DEFAULT_WIDE_WIDTH_PERCENT,
+      progressBarHeight: null,
+      lineHeight: null,
+      paragraphSpacing: null,
+    });
   });
 
   // ==================== 设置 → 样式（单一控制点） ====================

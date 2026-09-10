@@ -1,5 +1,5 @@
-export const DEFAULT_WIDE_WIDTH_PERCENT = 90;
-export const MIN_WIDE_WIDTH_PERCENT = 40;
+export const DEFAULT_WIDE_WIDTH_PERCENT = 80;
+export const MIN_WIDE_WIDTH_PERCENT = 52;
 export const MAX_WIDE_WIDTH_PERCENT = 98;
 
 export const normalizeWideWidthPercent = (value: unknown): number => {

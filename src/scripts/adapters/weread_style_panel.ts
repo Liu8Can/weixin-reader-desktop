@@ -46,6 +46,17 @@ const DEFAULT_LINE_HEIGHT = 1.9;
 /** 原生段间距：官方 p 规则 margin-bottom: 1em（相邻段折叠、末段归零） */
 const DEFAULT_PARAGRAPH_SPACING = 1.0;
 
+/** 底部进度条高度（px）：0 隐藏，16 为注入层默认高度；null/undefined 表示未设置
+ *  （保持原生观感，不注入覆盖样式）。注意不可依赖 Number 隐式转换——Number(null) === 0
+ *  会把「清除设置」误判为「高度 0」导致进度条消失 */
+const DEFAULT_PROGRESS_BAR_HEIGHT = 16;
+const normalizeProgressBarHeight = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(numeric) || numeric < 0 || numeric > DEFAULT_PROGRESS_BAR_HEIGHT) return undefined;
+  return numeric;
+};
+
 /** 官方正文段落选择器：测量层 preRenderContent + 渲染层 renderTargetContent 的 p，
  *  canvas 由测量层 DOM 快照而来，两者必须同步改。issue #4 时代的 .content/.quotation
  *  类名在当前版本已不存在（官方 CSS 无此规则），命中不了是上一版不生效的根因。 */
@@ -60,8 +71,10 @@ const STYLE_PANEL_ID = 'wxrd-style-panel';
 export const setupStylePanel = (api: PluginAPI): (() => void) => {
   const log = api.log;
   let teardown: (() => void) | null = null;
+  let disposed = false;
 
   const ensureButton = (): void => {
+    if (disposed) return;
     if (teardown) {
       // 按钮可能随 SPA 路由被移除，不在时重新注入
       if (document.getElementById(STYLE_BUTTON_ID)) return;
@@ -80,6 +93,7 @@ export const setupStylePanel = (api: PluginAPI): (() => void) => {
   ensureButton();
 
   return () => {
+    disposed = true;
     observer.disconnect();
     teardown?.();
     teardown = null;
@@ -142,6 +156,10 @@ const mountPanel = (api: PluginAPI): (() => void) => {
       <div class="wxrd-field">
         <span>阅读宽度 <output data-output="wideWidthPercent"></output></span>
         <input type="range" data-key="wideWidthPercent" min="${MIN_WIDE_WIDTH_PERCENT}" max="${MAX_WIDE_WIDTH_PERCENT}" step="2">
+      </div>
+      <div class="wxrd-field">
+        <span>进度高度 <output data-output="progressBarHeight"></output></span>
+        <input type="range" data-key="progressBarHeight" min="0" max="${DEFAULT_PROGRESS_BAR_HEIGHT}" step="1">
       </div>
     </div>
     <div class="wxrd-panel-section">
@@ -210,9 +228,9 @@ const mountPanel = (api: PluginAPI): (() => void) => {
   panel.querySelectorAll<HTMLInputElement>('input[type="range"][data-key]').forEach(slider => {
     const key = slider.dataset.key!;
     slider.addEventListener('input', () => {
-      if (key !== 'wideWidthPercent') return;
+      if (key !== 'wideWidthPercent' && key !== 'progressBarHeight') return;
       const output = panel.querySelector(`[data-output="${key}"]`);
-      if (output) output.textContent = `${slider.value}%`;
+      if (output) output.textContent = key === 'wideWidthPercent' ? `${slider.value}%` : `${slider.value}px`;
     });
     // change（松手）才写入：微信读书重分页成本高，拖动中不反复触发 resize
     slider.addEventListener('change', () => {
@@ -233,6 +251,7 @@ const mountPanel = (api: PluginAPI): (() => void) => {
       .then(() => settings.set('whiteTextBackground', null))
       .then(() => settings.set('readerWide', false))
       .then(() => settings.set('wideWidthPercent', DEFAULT_WIDE_WIDTH_PERCENT))
+      .then(() => settings.set('progressBarHeight', null))
       .then(() => settings.set('lineHeight', null))
       .then(() => settings.set('paragraphSpacing', null));
   });
@@ -272,6 +291,17 @@ const mountPanel = (api: PluginAPI): (() => void) => {
         }`);
     } else {
       api.style.remove('wxrd-white-text');
+    }
+
+    const progressBarHeight = normalizeProgressBarHeight(config.progressBarHeight);
+    if (progressBarHeight !== undefined) {
+      // 底部进度条高度覆盖：0 = 隐藏；全局注入使进度条 DOM 重建后依然命中
+      api.style.inject('wxrd-progress-height', `
+        #wxrd-progress-bar-container {
+          height: ${progressBarHeight}px !important;
+        }`);
+    } else {
+      api.style.remove('wxrd-progress-height');
     }
 
     const lineHeight = (config.lineHeight ?? null) as LineHeightChoice;
@@ -319,6 +349,7 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     });
     const defaults: Record<string, number> = {
       wideWidthPercent: DEFAULT_WIDE_WIDTH_PERCENT,
+      progressBarHeight: DEFAULT_PROGRESS_BAR_HEIGHT,
       lineHeight: DEFAULT_LINE_HEIGHT,
       paragraphSpacing: DEFAULT_PARAGRAPH_SPACING,
     };
@@ -327,7 +358,9 @@ const mountPanel = (api: PluginAPI): (() => void) => {
       const rawValue = config[key] ?? defaults[key];
       const value = key === 'wideWidthPercent'
         ? normalizeWideWidthPercent(rawValue)
-        : rawValue;
+        : key === 'progressBarHeight'
+          ? (normalizeProgressBarHeight(rawValue) ?? DEFAULT_PROGRESS_BAR_HEIGHT)
+          : rawValue;
       slider.value = String(value);
       const output = panel.querySelector(`[data-output="${key}"]`);
       if (output) {
@@ -335,9 +368,11 @@ const mountPanel = (api: PluginAPI): (() => void) => {
           ? '默认'
           : key === 'paragraphSpacing'
             ? `${value}em`
-            : key === 'wideWidthPercent'
-              ? `${value}%`
-              : String(value);
+            : key === 'progressBarHeight'
+              ? `${value}px`
+              : key === 'wideWidthPercent'
+                ? `${value}%`
+                : String(value);
       }
     });
   };
@@ -356,6 +391,7 @@ const mountPanel = (api: PluginAPI): (() => void) => {
     wrapper.remove();
     api.style.remove('wxrd-style-panel-ui');
     api.style.remove('wxrd-white-text');
+    api.style.remove('wxrd-progress-height');
     api.style.remove('wxrd-reading-spacing');
   };
 };

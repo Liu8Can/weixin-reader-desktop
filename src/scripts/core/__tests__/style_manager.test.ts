@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { PluginRegistry } from '../plugin_registry';
+import { DEFAULT_WIDE_WIDTH_PERCENT } from '../reader_width';
 import type { ReaderSiteRuntime } from '../reader_site_runtime';
 import { settingsStore, type MergedSettings } from '../settings_store';
 import { SiteContext } from '../site_context';
@@ -135,7 +136,7 @@ describe('StyleManager ownership and cleanup', () => {
 
     settingsStore.get = () => baseSettings({ readerWide: false, hideToolbar: false });
     settingsListener?.(settingsStore.get());
-    expect(runtime.getWideModeCSS).toHaveBeenLastCalledWith(false, 90);
+    expect(runtime.getWideModeCSS).toHaveBeenLastCalledWith(false, DEFAULT_WIDE_WIDTH_PERCENT);
     expect(runtime.getToolbarCSS).toHaveBeenLastCalledWith(false);
 
     window.dispatchEvent(new CustomEvent('ipc:route-changed', {

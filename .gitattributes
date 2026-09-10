@@ -1,0 +1,4 @@
+# 编译产物：文件照常入库与提交（CI 校验产物一致性依赖此），
+# 但 diff 不展示内容——防止海量压缩产物 diff 淹没审查与 AI 生成的提交信息
+src/scripts/inject.js -diff
+src/scripts/local_reader.js -diff

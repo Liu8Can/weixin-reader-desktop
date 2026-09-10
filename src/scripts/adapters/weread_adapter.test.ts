@@ -10,7 +10,7 @@ describe('WeReadAdapter 宽屏宽度', () => {
     expect(css).toContain('.readerContent > .app_content:not(.app_content_in_reader)');
     expect(css).toContain('width: 60vw !important');
     expect(css).toContain('.wr_horizontalReader_app_content .readerChapterContent');
-    expect(css).toContain('right: 24px !important');
+    expect(css).toContain('right: max(-72px, calc(24px - (100 - 60) / 2 * 1vw)) !important');
     expect(css).toContain('left: auto !important');
     expect(css).toContain('margin-left: 0 !important');
     expect(css).not.toContain('html body .app_content,');
@@ -18,21 +18,23 @@ describe('WeReadAdapter 宽屏宽度', () => {
     expect(css).not.toContain('min(');
   });
 
-  it('40% 到 98% 的滑块值均生成真实且不同的视口宽度', () => {
+  it('52% 到 98% 的滑块值均生成真实且不同的视口宽度', () => {
     const adapter = createAdapter();
 
-    for (const width of [40, 76, 90, 98]) {
+    for (const width of [52, 76, 90, 98]) {
       expect(adapter.getWideModeCSS(true, width)).toContain(`width: ${width}vw !important`);
+      // 外贴边 + 停住：每个宽度生成对应的贴边位置，留白不足时渐进压向正文
+      expect(adapter.getWideModeCSS(true, width)).toContain(`right: max(-72px, calc(24px - (100 - ${width}) / 2 * 1vw)) !important`);
     }
   });
 
-  it('缺失或非法值回退到 90%', () => {
+  it('缺失或非法值回退到 80%', () => {
     const adapter = createAdapter();
 
-    expect(adapter.getWideModeCSS(true)).toContain('90vw');
-    expect(adapter.getWideModeCSS(true, 39)).toContain('90vw');
-    expect(adapter.getWideModeCSS(true, 91)).toContain('90vw');
-    expect(adapter.getWideModeCSS(true, 100)).toContain('90vw');
+    expect(adapter.getWideModeCSS(true)).toContain('80vw');
+    expect(adapter.getWideModeCSS(true, 39)).toContain('80vw');
+    expect(adapter.getWideModeCSS(true, 51)).toContain('80vw');
+    expect(adapter.getWideModeCSS(true, 99)).toContain('80vw');
   });
 
   it('窄屏样式仍固定为原生 80%', () => {

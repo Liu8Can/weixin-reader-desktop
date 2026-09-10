@@ -59,9 +59,14 @@ export class WeReadAdapter extends BaseSiteAdapter {
           width: ${wideWidth}vw !important;
           max-width: ${wideWidth}vw !important;
         }
-        html body .readerControls {
+        /* 外贴边仅限横排（双栏）：is-horizontal 标记当前布局；纵向单栏的工具栏
+           定位结构不同，交还原生样式（一直好用） */
+        body:has(.readerControls[is-horizontal="true"]) .readerControls {
           left: auto !important;
-          right: 24px !important;
+          /* 外贴边：right 相对正文容器（宽 = 宽度 vw），负值浮到容器右缘外侧的留白区
+             （-72px = 工具栏宽 48 + 间距 24）；留白不足时与「贴视口右缘 24px」取更靠内者
+             （max），渐进压正文但绝不出屏、保持可点 */
+          right: max(-72px, calc(24px - (100 - ${wideWidth}) / 2 * 1vw)) !important;
           margin-left: 0 !important;
         }
       `;

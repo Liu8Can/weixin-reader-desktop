@@ -117,6 +117,7 @@ const createSettingsAPI = (pluginId: string): SettingsAPI => {
       }
     },
 
+
     async setMany(patch: Record<string, any>): Promise<void> {
       // 同一命名空间的键一次写入；跨命名空间按 site → config 次序串行，
       // 第二段失败时第一段已生效——与逐键链式 set 的失败语义一致（无新增风险），
@@ -133,9 +134,7 @@ const createSettingsAPI = (pluginId: string): SettingsAPI => {
       if (Object.keys(configPatch).length > 0) {
         await settingsStore.updatePluginConfig(pluginId, configPatch);
       }
-    },
-
-    getAll(): Record<string, any> {
+    },    getAll(): Record<string, any> {
       return getMerged();
     },
     

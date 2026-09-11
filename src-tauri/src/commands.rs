@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tauri::{menu::MenuItemKind, AppHandle, Emitter, Manager, Runtime, WebviewWindow};
 
 /// 摸鱼模式状态：true = 当前隐藏中
@@ -199,6 +199,45 @@ pub fn is_menu_bar_visible() -> bool {
     !MENU_HIDDEN.load(Ordering::SeqCst)
 }
 
+/// 跨层教训（用户两轮真机反馈驱动）：tauri 2.11 的 hide_menu/show_menu 把
+/// muda 层错误（Err(NotInitialized) 等）在内部 let _ 吞掉、永远返回 Ok——
+/// Rust 侧无法通过 Result 察觉物理失败。菜单栏切换的真实状态必须用
+/// is_menu_visible()（GetMenu(hwnd) 真值）回读验证；不匹配时采取自愈。
+///
+/// 自愈必须走「摘除 + app 级重设」：Window::set_menu 会把窗口菜单的
+/// is_app_wide 标志改写为 false，此后 AppHandle::set_menu（rebuild 的
+/// 路径）因「窗口已有 window-specific 菜单」被跳过——书店列表/显示器
+/// 列表/勾选态全部停止更新直到重启（Reviewer 抓到的潜伏回归）。而
+/// remove_menu 置 menu_lock 为 None 后，AppHandle::set_menu 会重新
+/// 以 is_app_wide=true 下发，恢复完整的重建链。
+#[cfg(target_os = "windows")]
+pub fn set_menu_bar_hidden<R: Runtime>(
+    app: &AppHandle<R>,
+    win: &tauri::WebviewWindow<R>,
+    hidden: bool,
+) -> bool {
+    let apply = |w: &tauri::WebviewWindow<R>| {
+        let outcome = if hidden { w.hide_menu() } else { w.show_menu() };
+        if let Err(error) = outcome {
+            log::error!("切换菜单栏可见性失败（目标：{}）：{error}", if hidden { "隐藏" } else { "显示" });
+        }
+    };
+    apply(win);
+    let mut achieved = matches!(win.is_menu_visible(), Ok(v) if v == !hidden);
+    if !achieved {
+        // 一次重试：app 级摘除+重设恢复干净基线（is_app_wide 链保活），
+        // muda init_for_hwnd 重建 hwnd 注册表后再执行目标动作
+        if let Some(menu) = app.menu() {
+            let _ = win.remove_menu();
+            if app.set_menu(menu).is_ok() {
+                apply(win);
+                achieved = matches!(win.is_menu_visible(), Ok(v) if v == !hidden);
+            }
+        }
+    }
+    achieved
+}
+
 #[tauri::command]
 pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
     #[cfg(target_os = "windows")]
@@ -206,32 +245,17 @@ pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
         let Some(win) = app.get_webview_window("main") else {
             return;
         };
-        // 历史 bug（用户反馈 Ctrl+H 第二次失效）的根因：旧实现先
-        // swap(true) 再走分支——无论 hide/show 是否成功，状态都被
-        // 焊死为 hidden；muda 的 Err(NotInitialized) 等失败又被 let _ =
-        // 吞掉。此后每次 toggle 都对已失效状态做 no-op，表现为单向。
-        // 修复：直读当前值，执行动作并检查 Result——失败保持原状态
-        // 并记录日志，用户重按仍指向同一目标分支。
+        // 历史 bug（第一轮反馈：第二次失效）：旧实现 swap(true) 先焊死状态、
+        // 吞错。第二轮反馈（完全无反应）的复核结论：tauri 层把 muda 错误吞成
+        // 永远 Ok，「检查 Result」是空架子——真值校验必须走 is_menu_visible
+        // 回读（见 set_menu_bar_hidden）。
         let hidden = MENU_HIDDEN.load(Ordering::SeqCst);
-        // 勾选=菜单栏已显示。成功后新可见性 = !hidden，直接命名避免
-        // 「旧值恰为双取反」的可读性陷阱（Reviewer 建议）
         let visible_after = !hidden;
-        let outcome: Result<(), tauri::Error> = if hidden {
-            win.show_menu()
+        if set_menu_bar_hidden(&app, &win, hidden) {
+            MENU_HIDDEN.store(visible_after, Ordering::SeqCst);
+            crate::menu::set_menu_check_state(&app, "toggle_menu", visible_after);
         } else {
-            win.hide_menu()
-        };
-        match outcome {
-            Ok(()) => {
-                MENU_HIDDEN.store(visible_after, Ordering::SeqCst);
-                crate::menu::set_menu_check_state(&app, "toggle_menu", visible_after);
-            }
-            Err(error) => {
-                log::error!(
-                    "切换菜单栏失败（目标：{}菜单栏）：{error}",
-                    if hidden { "显示" } else { "隐藏" }
-                );
-            }
+            log::error!("切换菜单栏失败且自愈未达成，状态保持不变（重按重试）");
         }
     }
     // 非 Windows 平台：空操作（macOS/Linux 菜单行为不同，不需要隐藏）
@@ -246,6 +270,77 @@ pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
 pub fn sync_menu_hidden_for_fullscreen<R: Runtime>(app: &AppHandle<R>, hidden: bool) {
     MENU_HIDDEN.store(hidden, Ordering::SeqCst);
     crate::menu::set_menu_check_state(app, "toggle_menu", !hidden);
+}
+
+/// 到期收回的单例计时器状态（LazyLock 需要具名类型做 static）：
+/// handle 槽 + 世代计数（防 abort 边缘竞速，Reviewer 建议）
+#[cfg(target_os = "windows")]
+struct RevealState {
+    handle: std::sync::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    generation: AtomicU64,
+}
+
+/// 全屏 hover 唤出菜单栏（一次性，用户已批准的功能）。
+///
+/// 前端在全屏状态下检测 mousemove 命中带（clientY ≤ 2）后调用本命令：
+/// 临时显示菜单栏 reveal_ms 毫秒，到期恢复隐藏（若到期时又有碰顶，
+/// 前端会再次调用本命令 re-arm，实现「再次碰顶可不断唤出」）。
+/// 语义约束：绝不触碰 MENU_HIDDEN——它表达的是「用户 Ctrl+H 持久意愿」；
+/// 本命令只改变物理可见性并到期收回，防止污染持久状态语义。
+/// （到时若用户正在下拉菜单操作，延长窗口由前端通过再次调用实现；
+/// 原生菜单上的 mousemove 收不到，故采用固定时长 + re-arm 模式。）
+#[cfg(target_os = "windows")]
+#[tauri::command]
+pub fn reveal_menu_bar_transient<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow,
+    reveal_ms: u64,
+) {
+    use std::sync::Mutex;
+    if window.label() != "main" {
+        return;
+    }
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+    if !set_menu_bar_hidden(&app, &win, false) {
+        log::error!("hover 唤出菜单栏失败且自愈未达成");
+        return;
+    }
+    // 单例计时器 + 世代计数（Reviewer 建议）：re-arm 时 abort 旧任务并
+    // 递增世代；到期回调携带自己的世代，仅当世代仍匹配才执行收回——
+    // 防「abort 落在旧任务 sleep 已完成、同步段执行中」的边缘竞速。
+    static REVEAL_STATE: std::sync::LazyLock<RevealState> =
+        std::sync::LazyLock::new(|| RevealState {
+            handle: Mutex::new(None),
+            generation: AtomicU64::new(0),
+        });
+    let my_generation = REVEAL_STATE.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    if let Ok(mut guard) = REVEAL_STATE.handle.lock() {
+        if let Some(previous) = guard.take() {
+            previous.abort();
+        }
+    }
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(reveal_ms)).await;
+        // 世代校验：期间有 re-arm（abort 未及时生效的边缘）则本任务作废
+        if REVEAL_STATE.generation.load(Ordering::SeqCst) != my_generation {
+            return;
+        }
+        if let Ok(mut guard) = REVEAL_STATE.handle.lock() {
+            *guard = None;
+        }
+        if let Some(win) = app.get_webview_window("main") {
+            // 到期收回条件：仍处于全屏 且 用户持久意愿为隐藏（MENU_HIDDEN=true）。
+            // 用户 Ctrl+H 语义（显示）或已退出全屏时保持现状——后者由
+            // toggle 全屏路径的 show_menu 恢复，不在此重复。
+            let persist_hidden = MENU_HIDDEN.load(Ordering::SeqCst);
+            let in_fullscreen = win.is_fullscreen().unwrap_or(false);
+            if in_fullscreen && persist_hidden && !set_menu_bar_hidden(&app, &win, true) {
+                log::error!("hover 唤出到时收回失败");
+            }
+        }
+    });
 }
 
 /// 模拟菜单点击（Windows"瞒天过海"快捷键方案）

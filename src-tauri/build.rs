@@ -24,6 +24,7 @@ fn main() {
             "set_title",
             "toggle_stealth",
             "toggle_menu_bar",
+            "reveal_menu_bar_transient",
             "simulate_menu_click",
             "set_content_source_enabled",
             "claim_settings_target",

@@ -720,27 +720,20 @@ pub fn handle_menu_action<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<()
                 if let Ok(is_fullscreen) = win.is_fullscreen() {
                     let _ = win.set_fullscreen(!is_fullscreen);
                     // Windows: 全屏时自动隐藏菜单栏，退出全屏时恢复。
-                    // 与 toggle_menu_bar 同构（Reviewer 建议）：菜单动作成功才
-                    // 同步 MENU_HIDDEN，失败不翻转——避免「物理隐藏/状态显示」
-                    // 的镜像脱钩。
+                    // 回读自愈与 toggle_menu_bar 同构：真值校验走
+                    // is_menu_visible，达成后才同步 MENU_HIDDEN
                     #[cfg(target_os = "windows")]
                     {
-                        let menu_outcome = if is_fullscreen {
-                            win.show_menu()
+                        let hidden_after = !is_fullscreen; // 进入全屏(切前非全屏)→隐藏
+                        if crate::commands::set_menu_bar_hidden(app, &win, hidden_after) {
+                            crate::commands::sync_menu_hidden_for_fullscreen(app, hidden_after);
                         } else {
-                            win.hide_menu()
-                        };
-                        match menu_outcome {
-                            Ok(()) => {
-                                crate::commands::sync_menu_hidden_for_fullscreen(
-                                    app,
-                                    !is_fullscreen,
-                                );
-                            }
-                            Err(error) => {
-                                log::error!("全屏进入/退出时同步菜单栏失败：{error}");
-                            }
+                            log::error!("全屏切换时同步菜单栏失败且自愈未达成");
                         }
+                        // 全屏状态广播：前端据此启用「鼠标碰顶边唤出菜单栏」
+                        // 命中带（hover reveal）。Windows 全屏是 borderless，
+                        // OS 层无顶边唤出行为，需应用自建命中区
+                        let _ = win.emit("fullscreen-changed", !is_fullscreen);
                     }
                     // macOS first responder 恢复由 watch_fullscreen_exit 负责
                     //（objc makeFirstResponder，此处立即聚焦会被全屏动画冲掉）
@@ -1140,9 +1133,10 @@ pub fn rebuild_full_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Res
             !crate::commands::is_menu_bar_visible()
         };
         if should_hide {
-            if let Err(error) = main_window.hide_menu() {
-                log::warn!("rebuild 后恢复菜单栏隐藏/全屏状态失败：{error}");
-            }
+            // 回读自愈（同 toggle_menu_bar）：tauri 层吞错使 Result 不可信，
+            // 物理状态以 is_menu_visible 真值为准；rebuild 的 set_menu 已把
+            // 菜单挂回，这里按目标态收敛并二次验证
+            crate::commands::set_menu_bar_hidden(handle, &main_window, true);
             if main_window.is_fullscreen().unwrap_or(false) {
                 crate::commands::sync_menu_hidden_for_fullscreen(handle, true);
             }

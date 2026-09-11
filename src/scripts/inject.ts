@@ -2,25 +2,9 @@ import { AppRuntime } from './core/app_runtime';
 import { attachEventToSameOriginIframes, attachKeyboardToSameOriginIframes } from './core/iframe_keyboard';
 import { log } from './core/logger';
 import { invoke, listen } from './core/tauri';
+import { REVEAL_MS, shouldRevealMenuBar } from './core/hover_reveal';
 
-/** 全屏 hover 命中带：CSS 像素（125%/150% DPI 换算后捕获带仍有 1~3px） */
-export const EDGE_HIT_PX = 2;
-/** 命中带触发节流：驻留/滑动经过顶边时不以 mousemove 频率连发 IPC */
-export const EDGE_THROTTLE_MS = 500;
-/** hover 唤出后驻留时长；用户停留在下拉菜单上操作时靠再次碰顶 re-arm 延长 */
-export const REVEAL_MS = 4000;
 
-/** hover 唤出命中的纯判定（inject 级联的独立可测单元）：
- * 是否应当触发一次 reveal IPC？由全屏态、F11 抑制窗、坐标、节流共同决定 */
-export const shouldRevealMenuBar = (state: {
-  inFullscreen: boolean;
-  suppressEdgeMove: boolean;
-}, y: number, now: number, lastRevealAt: number): number | null => {
-  if (!state.inFullscreen || state.suppressEdgeMove) return null;
-  if (y > EDGE_HIT_PX) return null;
-  if (now - lastRevealAt < EDGE_THROTTLE_MS) return null;
-  return now;
-};
 
 async function main(): Promise<void> {
   // 主窗口也会承载本地默认页；阅读运行时只应注入网络站点。

@@ -719,14 +719,28 @@ pub fn handle_menu_action<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<()
             if let Some(win) = app.get_webview_window("main") {
                 if let Ok(is_fullscreen) = win.is_fullscreen() {
                     let _ = win.set_fullscreen(!is_fullscreen);
-                    // Windows: 全屏时自动隐藏菜单栏，退出全屏时恢复
+                    // Windows: 全屏时自动隐藏菜单栏，退出全屏时恢复。
+                    // 与 toggle_menu_bar 同构（Reviewer 建议）：菜单动作成功才
+                    // 同步 MENU_HIDDEN，失败不翻转——避免「物理隐藏/状态显示」
+                    // 的镜像脱钩。
                     #[cfg(target_os = "windows")]
-                    if !is_fullscreen {
-                        let _ = win.hide_menu();
-                        crate::commands::sync_menu_hidden_for_fullscreen(app, true);
-                    } else {
-                        let _ = win.show_menu();
-                        crate::commands::sync_menu_hidden_for_fullscreen(app, false);
+                    {
+                        let menu_outcome = if is_fullscreen {
+                            win.show_menu()
+                        } else {
+                            win.hide_menu()
+                        };
+                        match menu_outcome {
+                            Ok(()) => {
+                                crate::commands::sync_menu_hidden_for_fullscreen(
+                                    app,
+                                    !is_fullscreen,
+                                );
+                            }
+                            Err(error) => {
+                                log::error!("全屏进入/退出时同步菜单栏失败：{error}");
+                            }
+                        }
                     }
                     // macOS first responder 恢复由 watch_fullscreen_exit 负责
                     //（objc makeFirstResponder，此处立即聚焦会被全屏动画冲掉）
@@ -1107,6 +1121,33 @@ pub fn rebuild_full_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Res
         }
     }
     disable_reader_menu_items(handle);
+    // set_menu 会把 (Windows 上已隐藏的) 菜单栏重新挂回窗口——rebuild
+    // 必须感知 MENU_HIDDEN，否则隐藏状态下任何一次重建（窗口移动/插件
+    // 变化触发）都把菜单栏闪现出来，且 MENU_HIDDEN 与屏幕状态脱钩，
+    // 下一次 Ctrl+H 从 toggle 变成对错误分支的 no-op（用户反馈的单向失效的
+    // 现实触发器）。rebuild 后按持久状态补齐 hide。
+    //
+    // 同函数顺带覆盖「全屏路径不对称」：冷启动（window-state 回放
+    // FULLSCREEN）与跨屏移动恢复全屏（monitor.rs）都直接调
+    // set_fullscreen 绕过了 toggle_fullscreen 里的 hide_menu——这两条
+    // 路径均伴随或不晚于此处的菜单重建，因此在这里按窗口实际全屏状态
+    // 校正菜单可见性，不再各路径分散补丁。
+    #[cfg(target_os = "windows")]
+    if let Some(main_window) = handle.get_webview_window("main") {
+        let should_hide = if main_window.is_fullscreen().unwrap_or(false) {
+            true
+        } else {
+            !crate::commands::is_menu_bar_visible()
+        };
+        if should_hide {
+            if let Err(error) = main_window.hide_menu() {
+                log::warn!("rebuild 后恢复菜单栏隐藏/全屏状态失败：{error}");
+            }
+            if main_window.is_fullscreen().unwrap_or(false) {
+                crate::commands::sync_menu_hidden_for_fullscreen(handle, true);
+            }
+        }
+    }
     if let Some(main_window) = handle.get_webview_window("main") {
         let _ = main_window.emit("menu-rebuilt", ());
     }

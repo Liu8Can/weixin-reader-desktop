@@ -188,7 +188,8 @@ pub fn toggle_stealth<R: Runtime>(app: AppHandle<R>) {
     }
 }
 
-/// Windows 专属：切换菜单栏可见性（Ctrl+M）
+/// Windows 专属：切换菜单栏可见性（Ctrl+H，见 inject.ts / local-reader 前端键位；
+/// 菜单 accelerator 刻意为 None——WebView2 下 accelerator 失效，前端模拟触发）
 /// 不持久化，重启后恢复默认显示
 #[cfg(target_os = "windows")]
 static MENU_HIDDEN: AtomicBool = AtomicBool::new(false);
@@ -205,14 +206,32 @@ pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
         let Some(win) = app.get_webview_window("main") else {
             return;
         };
-        let was_hidden = MENU_HIDDEN.swap(true, Ordering::SeqCst);
-        if was_hidden {
-            let _ = win.show_menu();
-            MENU_HIDDEN.store(false, Ordering::SeqCst);
-            crate::menu::set_menu_check_state(&app, "toggle_menu", true);
+        // 历史 bug（用户反馈 Ctrl+H 第二次失效）的根因：旧实现先
+        // swap(true) 再走分支——无论 hide/show 是否成功，状态都被
+        // 焊死为 hidden；muda 的 Err(NotInitialized) 等失败又被 let _ =
+        // 吞掉。此后每次 toggle 都对已失效状态做 no-op，表现为单向。
+        // 修复：直读当前值，执行动作并检查 Result——失败保持原状态
+        // 并记录日志，用户重按仍指向同一目标分支。
+        let hidden = MENU_HIDDEN.load(Ordering::SeqCst);
+        // 勾选=菜单栏已显示。成功后新可见性 = !hidden，直接命名避免
+        // 「旧值恰为双取反」的可读性陷阱（Reviewer 建议）
+        let visible_after = !hidden;
+        let outcome: Result<(), tauri::Error> = if hidden {
+            win.show_menu()
         } else {
-            let _ = win.hide_menu();
-            crate::menu::set_menu_check_state(&app, "toggle_menu", false);
+            win.hide_menu()
+        };
+        match outcome {
+            Ok(()) => {
+                MENU_HIDDEN.store(visible_after, Ordering::SeqCst);
+                crate::menu::set_menu_check_state(&app, "toggle_menu", visible_after);
+            }
+            Err(error) => {
+                log::error!(
+                    "切换菜单栏失败（目标：{}菜单栏）：{error}",
+                    if hidden { "显示" } else { "隐藏" }
+                );
+            }
         }
     }
     // 非 Windows 平台：空操作（macOS/Linux 菜单行为不同，不需要隐藏）

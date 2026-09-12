@@ -14,8 +14,8 @@
  */
 
 export const EXIT_BUTTON_ID = 'wxrd-exit-fullscreen';
-/** 碰顶后按钮驻留时长：指针离开命中带后仍给用户一个找回窗口 */
-export const EXIT_BUTTON_LINGER_MS = 2500;
+/** 碰顶后按钮驻留时长：用户反馈「要再短一点」，从 2.5s 收至 1.2s */
+export const EXIT_BUTTON_LINGER_MS = 1200;
 /** 指针离开顶边命中带后多久算「真正离开」（命中带 y ≤ EDGE_HIT_PX 与 hover_reveal 共用阈值语义） */
 export const EXIT_BUTTON_EDGE_PX = 2;
 
@@ -25,7 +25,7 @@ export const EXIT_BUTTON_EDGE_PX = 2;
 export const isEdgeHit = (y: number): boolean => y <= EXIT_BUTTON_EDGE_PX && y >= 0;
 
 /**
- * 创建（或复用）退出全屏按钮节点。挂在 body 上，absolute 定位右上角。
+ * 创建（或复用）退出全屏按钮节点。挂在 body 上，fixed 居中大圆形（64px，屏幕正中）。
  * 幂等：重复调用返回同一节点。
  */
 export const ensureExitButton = (doc: Document): HTMLButtonElement | null => {
@@ -49,52 +49,57 @@ export const ensureExitButton = (doc: Document): HTMLButtonElement | null => {
   style.textContent = `
     #${EXIT_BUTTON_ID} {
       position: fixed;
-      top: 10px;
-      right: 14px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(.92);
       z-index: 2147483647;
-      width: 34px;
-      height: 34px;
+      width: 64px;
+      height: 64px;
       display: none;
       align-items: center;
       justify-content: center;
       padding: 0;
       border: none;
-      border-radius: 10px;
-      background: rgba(20, 21, 23, 0.45);
+      border-radius: 50%;
+      background: rgba(20, 21, 23, 0.42);
       color: #f2f3f5;
       cursor: pointer;
       opacity: 0;
-      transition: opacity .18s ease, transform .18s ease, background .18s ease;
-      -webkit-backdrop-filter: blur(6px);
-      backdrop-filter: blur(6px);
+      transition: opacity .16s ease, transform .16s ease, background .16s ease;
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 22px rgba(0, 0, 0, 0.28);
     }
     #${EXIT_BUTTON_ID}.wxrd-edge-shown {
       display: flex;
       opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
     }
     #${EXIT_BUTTON_ID}:hover {
-      background: rgba(20, 21, 23, 0.72);
-      transform: scale(1.06);
+      background: rgba(20, 21, 23, 0.68);
+      transform: translate(-50%, -50%) scale(1.05);
     }
     body.wr_whiteTheme #${EXIT_BUTTON_ID} {
-      background: rgba(244, 245, 247, 0.5);
+      background: rgba(244, 245, 247, 0.55);
       color: #1f2329;
+      box-shadow: 0 4px 22px rgba(0, 0, 0, 0.12);
     }
     body.wr_whiteTheme #${EXIT_BUTTON_ID}:hover {
       background: rgba(244, 245, 247, 0.85);
     }
     @media (prefers-color-scheme: light) {
       body:not(.wr_whiteTheme) #${EXIT_BUTTON_ID} {
-        background: rgba(244, 245, 247, 0.5);
+        background: rgba(244, 245, 247, 0.55);
         color: #1f2329;
+        box-shadow: 0 4px 22px rgba(0, 0, 0, 0.12);
       }
       body:not(.wr_whiteTheme) #${EXIT_BUTTON_ID}:hover {
         background: rgba(244, 245, 247, 0.85);
       }
     }
     #${EXIT_BUTTON_ID} svg {
-      width: 17px;
-      height: 17px;
+      width: 26px;
+      height: 26px;
       fill: currentColor;
       pointer-events: none;
     }

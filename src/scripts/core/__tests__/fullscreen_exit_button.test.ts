@@ -64,9 +64,9 @@ describe('fullscreen_exit_button（dev.9 退出全屏叉号）', () => {
 
 // 常量契约：与 hover 命中带语义对齐（EDGE_THROTTLE 语义已退役，这些值独立演化）
 describe('fullscreen_exit_button 常量契约', () => {
-  test('驻留时长在 1.5s~4s 合理区间', () => {
-    expect(EXIT_BUTTON_LINGER_MS).toBeGreaterThanOrEqual(1500);
-    expect(EXIT_BUTTON_LINGER_MS).toBeLessThanOrEqual(4000);
+  test('驻留时长在 0.8s~2s 区间（用户反馈 2.5s 偏长）', () => {
+    expect(EXIT_BUTTON_LINGER_MS).toBeGreaterThanOrEqual(800);
+    expect(EXIT_BUTTON_LINGER_MS).toBeLessThanOrEqual(2000);
   });
   test('命中带 ≤ 3px（DPI 换算后仍可命中）', () => {
     expect(EXIT_BUTTON_EDGE_PX).toBeLessThanOrEqual(3);

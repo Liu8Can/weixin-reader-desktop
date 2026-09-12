@@ -362,9 +362,10 @@ function __classPrivateFieldGet(receiver,state,kind,f){if(kind==="a"&&!f)throw n
     </svg>`;const style=doc.createElement("style");style.id=`${EXIT_BUTTON_ID}-style`;style.textContent=`
     #${EXIT_BUTTON_ID} {
       position: fixed;
-      top: 50%;
+      /* 顶部居中：从碰顶的顶边弹出、就近可点；屏幕正中会挡正文且离命中带太远 */
+      top: 10%;
       left: 50%;
-      transform: translate(-50%, -50%) scale(.92);
+      transform: translateX(-50%) scale(.92);
       z-index: 2147483647;
       width: 64px;
       height: 64px;
@@ -386,11 +387,11 @@ function __classPrivateFieldGet(receiver,state,kind,f){if(kind==="a"&&!f)throw n
     #${EXIT_BUTTON_ID}.wxrd-edge-shown {
       display: flex;
       opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
+      transform: translateX(-50%) scale(1);
     }
     #${EXIT_BUTTON_ID}:hover {
       background: rgba(20, 21, 23, 0.68);
-      transform: translate(-50%, -50%) scale(1.05);
+      transform: translateX(-50%) scale(1.05);
     }
     body.wr_whiteTheme #${EXIT_BUTTON_ID} {
       background: rgba(244, 245, 247, 0.55);

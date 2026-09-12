@@ -25,7 +25,7 @@ export const EXIT_BUTTON_EDGE_PX = 2;
 export const isEdgeHit = (y: number): boolean => y <= EXIT_BUTTON_EDGE_PX && y >= 0;
 
 /**
- * 创建（或复用）退出全屏按钮节点。挂在 body 上，fixed 居中大圆形（64px，屏幕正中）。
+ * 创建（或复用）退出全屏按钮节点。挂在 body 上，fixed 顶部居中大圆形（64px，top:10%——从碰顶的边弹出、就近可点，不挡正文）。
  * 幂等：重复调用返回同一节点。
  */
 export const ensureExitButton = (doc: Document): HTMLButtonElement | null => {
@@ -49,9 +49,10 @@ export const ensureExitButton = (doc: Document): HTMLButtonElement | null => {
   style.textContent = `
     #${EXIT_BUTTON_ID} {
       position: fixed;
-      top: 50%;
+      /* 顶部居中：从碰顶的顶边弹出、就近可点；屏幕正中会挡正文且离命中带太远 */
+      top: 10%;
       left: 50%;
-      transform: translate(-50%, -50%) scale(.92);
+      transform: translateX(-50%) scale(.92);
       z-index: 2147483647;
       width: 64px;
       height: 64px;
@@ -73,11 +74,11 @@ export const ensureExitButton = (doc: Document): HTMLButtonElement | null => {
     #${EXIT_BUTTON_ID}.wxrd-edge-shown {
       display: flex;
       opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
+      transform: translateX(-50%) scale(1);
     }
     #${EXIT_BUTTON_ID}:hover {
       background: rgba(20, 21, 23, 0.68);
-      transform: translate(-50%, -50%) scale(1.05);
+      transform: translateX(-50%) scale(1.05);
     }
     body.wr_whiteTheme #${EXIT_BUTTON_ID} {
       background: rgba(244, 245, 247, 0.55);

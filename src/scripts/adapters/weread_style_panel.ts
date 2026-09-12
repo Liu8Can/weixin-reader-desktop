@@ -33,6 +33,19 @@ const READING_BACKGROUND_PRESETS = [
 ] as const;
 const DEFAULT_READING_BACKGROUND = '#16171a';
 
+/** 全黑度档页面底（两侧留白）映射：比正文黑度浅一档，保留 v1.7.4 起
+ * 有意的色差层次（注释原话：「正文卡片与页面底色保留色差，微信读书的
+ * 圆角才可见」）。dev.14 曾把留白拉到与正文同色（沉浸），用户实测反馈
+ * 观感劣化——全黑一片失去卡片边界；dev.15 回归层次：留白跟随体系切换
+ * 但恒比正文浅一档。 */
+const READING_GUTTER_PRESETS: Record<string, string> = {
+  '#18191b': '#26272a', // 柔黑正文 → 留白柔灰
+  '#16171a': '#222326', // 深黑正文 → 留白铁灰
+  '#000000': '#101012', // 纯黑正文 → 留白炭黑
+};
+const gutterColorFor = (background: string): string =>
+  READING_GUTTER_PRESETS[background] ?? '#222326';
+
 /** 背景档位白名单校验：持久化值只接受预设色；null/未知值回落深黑（默认档），
  *  防止被污染的存储值拼进 style 注入 */
 const normalizeReadingBackground = (value: unknown): string =>
@@ -286,12 +299,12 @@ const mountPanel = (api: PluginAPI): (() => void) => {
         body:not(.wr_whiteTheme) .wr_canvasContainer canvas {
           filter: brightness(${brightness}) !important;
         }
-        /* 两侧留白随主题（用户 dev.13 验收反馈：文字/正文/画布会换，但两侧
-           空白区域不换——bug）。正文是我们的染色体系，页面底（body 两侧留白）
-           必须同体系切换：夜间与正文黑度同色形成沉浸底；日间恢复纯白页面底。
-           仅在白底正文开启时染色，关闭时移除规则即可还原微信读书原生底色。 */
+        /* 两侧留白随主题切换（dev.13 反馈的 bug）但与正文保持色差层次
+           （dev.14 用户反馈：全同色观感劣化，回归 v1.7.4 的有意设计——
+           「正文卡片与页面底色保留色差，圆角才可见」）。留白取黑度档
+           对应的浅一档映射（见 READING_GUTTER_PRESETS）；日间纯白。 */
         body:not(.wr_whiteTheme) {
-          background-color: ${background} !important;
+          background-color: ${gutterColorFor(background)} !important;
         }
         body.wr_whiteTheme {
           background-color: #fff !important;

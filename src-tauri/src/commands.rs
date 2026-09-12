@@ -235,8 +235,45 @@ pub fn set_menu_bar_hidden<R: Runtime>(
             }
         }
     }
+    if !achieved {
+        // 终级兜底（dev.4 真机 4 连按取证）：tauri/muda 层对 show 路径可能
+        // 静默失败（SetMenu 吞错且不重算非客户区）。直接对窗口 hwnd 执行
+        // SetWindowPos SWP_FRAMECHANGED，强制 Win32 重算非客户区并把
+        //（由 app 级重设已挂上的）菜单栏绘制出来。
+        force_nonclient_recalc(win);
+        if !hidden {
+            apply(win);
+        }
+        achieved = matches!(win.is_menu_visible(), Ok(v) if v == !hidden);
+    }
     achieved
 }
+
+/// 强制目标窗口重算非客户区（菜单栏所在区域）。SetMenu 后若宿主只调了
+/// DrawMenuBar，在部分状态（全屏 borderless 等）下栏不会出现；一次
+/// SWP_FRAMECHANGED 的 same-position SetWindowPos 是等价于样式变更的
+/// 无损触发方式。
+#[cfg(target_os = "windows")]
+fn force_nonclient_recalc<R: Runtime>(win: &tauri::WebviewWindow<R>) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOP, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    };
+    let Ok(hwnd) = win.hwnd() else { return };
+    unsafe {
+        SetWindowPos(
+            hwnd.0 as _,
+            HWND_TOP,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn force_nonclient_recalc<R: Runtime>(_win: &tauri::WebviewWindow<R>) {}
 
 #[tauri::command]
 pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {

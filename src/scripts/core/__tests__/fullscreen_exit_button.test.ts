@@ -76,7 +76,7 @@ describe('fullscreen_exit_button 常量契约', () => {
 // dev.19：尺寸/位置/整矩命中区契约
 describe('退出全屏按钮几何与命中区（dev.19 用户反馈）', () => {
   test('尺寸 88px、top 5%、命中区=整矩形（::before 视觉圆 + svg 不拦截）', () => {
-    const button = ensureExitButton(document)!;
+    ensureExitButton(document);
     document.body.className = '';
     const css = document.getElementById(`${EXIT_BUTTON_ID}-style`)?.textContent ?? '';
     expect(css).toContain('width: 88px');

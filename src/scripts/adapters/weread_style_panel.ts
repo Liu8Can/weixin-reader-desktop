@@ -43,6 +43,16 @@ const READING_GUTTER_PRESETS: Record<string, string> = {
   '#16171a': '#222326', // 深黑正文 → 留白铁灰
   '#000000': '#101012', // 纯黑正文 → 留白炭黑
 };
+/** 微信读书真实主题信号（dev.16 取证）：亮暗不再走 body.wr_whiteTheme
+ * DOM 类（新版阅读页 carriers 实测为空），而是 cookie wr_theme=dark|light。
+ * 旧 wr_whiteTheme 分支全部为死选择器 —— 亮色下两侧留白仍被夜分支
+ * 锁暗的直接根因。 */
+const detectWereadTheme = (): 'dark' | 'light' => {
+  if (document.body.classList.contains('wr_whiteTheme')) return 'light';
+  const match = document.cookie.match(/(?:^|;\s*)wr_theme=(light|dark)/);
+  return match?.[1] === 'light' ? 'light' : 'dark';
+};
+
 const gutterColorFor = (background: string): string =>
   READING_GUTTER_PRESETS[background] ?? '#222326';
 
@@ -278,6 +288,7 @@ const mountPanel = (api: PluginAPI): (() => void) => {
 
   const applyReadingStyles = (config: Record<string, any>): void => {
     const whiteText = config.whiteText === true;
+    const wereadTheme = detectWereadTheme();
     if (whiteText) {
       const brightness = Number(config.whiteTextBrightness ?? 1.35) || 1.35;
       const background = normalizeReadingBackground(config.whiteTextBackground);
@@ -303,12 +314,11 @@ const mountPanel = (api: PluginAPI): (() => void) => {
            （dev.14 用户反馈：全同色观感劣化，回归 v1.7.4 的有意设计——
            「正文卡片与页面底色保留色差，圆角才可见」）。留白取黑度档
            对应的浅一档映射（见 READING_GUTTER_PRESETS）；日间纯白。 */
-        body:not(.wr_whiteTheme) {
+        ${wereadTheme === 'dark' ? `body:not(.wr_whiteTheme) {
           background-color: ${gutterColorFor(background)} !important;
-        }
-        body.wr_whiteTheme {
+        }` : `body.wr_whiteTheme, body:not(.wr_whiteTheme) {
           background-color: #fff !important;
-        }
+        }`}
         /* 正文插图/公式是独立 <img>（黑墨透明底/白底），深底上黑墨不可见；
            brightness 对纯黑墨无效（0×N=0），必须反色成白墨，色相用 hue-rotate 抵消。
            限定正文容器防止命中页面装饰图（头像/封面等）。 */
@@ -412,12 +422,23 @@ const mountPanel = (api: PluginAPI): (() => void) => {
   };
 
   const unsubscribe = settings.subscribe(applyReadingStyles);
+  // 微信读书主题切换（cookie wr_theme）可能不整页刷新 —— 每 800ms 轻量
+  // 比对一次，变化即重跑样式（亮/暗留白分支切换）。teardown 时清除。
+  let lastTheme = detectWereadTheme();
+  const themeWatcher = setInterval(() => {
+    const next = detectWereadTheme();
+    if (next !== lastTheme) {
+      lastTheme = next;
+      applyReadingStyles(settings.getAll());
+    }
+  }, 800);
   applyReadingStyles(settings.getAll());
 
   // 面板样式（独立注入，随面板卸载移除）
   api.style.inject('wxrd-style-panel-ui', PANEL_UI_CSS);
 
-  return () => {
+    return () => {
+    clearInterval(themeWatcher);
     unsubscribe();
     button.removeEventListener('click', toggleButton);
     document.removeEventListener('click', closeOnOutside, true);

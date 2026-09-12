@@ -92,9 +92,6 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
-    },
-    "targets": [
-      "nsis"
-    ]
+    }
   }
 }

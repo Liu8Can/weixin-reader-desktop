@@ -394,7 +394,18 @@ pub fn run() {
             let url = match startup_target {
                 MainStartupTarget::Online(url_str) => {
                     println!("[Init] Restoring enabled online site: {}", url_str);
-                    WebviewUrl::External(url_str.parse().unwrap())
+                    // lastReaderUrl 来自 settings.json（旧数据/手改/坏写入都可能污染）。
+                    // 同文件其它解析点全部容错，唯独这里 unwrap：非法字符串会让应用
+                    // 每次启动都在 setup 阶段 panic（窗口都出不来）。回落站点首页。
+                    match url_str.parse() {
+                        Ok(online) => WebviewUrl::External(online),
+                        Err(error) => {
+                            eprintln!(
+                                "[Init] 存储的 lastReaderUrl 非法，改用微信读书首页：{url_str} ({error})"
+                            );
+                            WebviewUrl::External("https://weread.qq.com/".parse().unwrap())
+                        }
+                    }
                 }
                 MainStartupTarget::Local(url) => {
                     println!("[Init] Restoring local book: {}", url);

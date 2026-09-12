@@ -49,8 +49,12 @@ const READING_GUTTER_PRESETS: Record<string, string> = {
  * 锁暗的直接根因。 */
 const detectWereadTheme = (): 'dark' | 'light' => {
   if (document.body.classList.contains('wr_whiteTheme')) return 'light';
-  const match = document.cookie.match(/(?:^|;\s*)wr_theme=(light|dark)/);
-  return match?.[1] === 'light' ? 'light' : 'dark';
+  const matches = document.cookie.matchAll(/(?:^|;\s*)wr_theme=(light|dark)/g);
+  let value: 'light' | 'dark' | null = null;
+  for (const m of matches) value = m[1] as 'light' | 'dark';
+  // 多值时取【最后】一个：真实切换是原位更新；模拟/残留场景里最新的语义
+  // 靠后者（Cookie 存储无序，见 dev.16 验证：双 wr_theme 并存时最后一个为最新写入）
+  return value === 'light' ? 'light' : 'dark';
 };
 
 const gutterColorFor = (background: string): string =>

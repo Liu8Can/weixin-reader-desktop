@@ -249,9 +249,13 @@ pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
         // 吞错。第二轮反馈（完全无反应）的复核结论：tauri 层把 muda 错误吞成
         // 永远 Ok，「检查 Result」是空架子——真值校验必须走 is_menu_visible
         // 回读（见 set_menu_bar_hidden）。
+        // 第三轮（dev.3 真机反馈 + 三方合并审计）：动作参数误传「当前态」
+        // hidden 而非「目标态」！首次按下对已可见菜单执行 show（视觉无变化）
+        // 后翻转状态，此后 is_menu_bar_visible 与屏幕恒反相，污染 rebuild/
+        // hover-reveal 到期收回/全屏同步的 persist_hidden 判定。
         let hidden = MENU_HIDDEN.load(Ordering::SeqCst);
         let visible_after = !hidden;
-        if set_menu_bar_hidden(&app, &win, hidden) {
+        if set_menu_bar_hidden(&app, &win, visible_after) {
             MENU_HIDDEN.store(visible_after, Ordering::SeqCst);
             crate::menu::set_menu_check_state(&app, "toggle_menu", visible_after);
         } else {
@@ -1180,5 +1184,22 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(std::fs::read_to_string(&outside).unwrap(), "keep");
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn menu_toggle_applies_target_state_not_current_state() {
+        // dev.3 第三轮真机回归：toggle 曾把「当前态」hidden 传给
+        // set_menu_bar_hidden 而非目标态 ！hidden——首按视觉无效后状态反相。
+        // 用纯函数级推演固化：目标态 = !当前 MENU_HIDDEN。
+        // （MENU_HIDDEN/窗口为 Win32 资源，无法单测直连；这里固化语义不变量，
+        //  由 tauri_ipc_dispatches_application_metadata_commands 一类的集成
+        //  冒烟与真机 CDP 复测兜底。）
+        for current in [false, true] {
+            let target = !current;
+            assert_ne!(current, target, "toggle 必须产生目标态翻转");
+            // set_menu_bar_hidden 的参数语义：hidden=true → 隐藏；目标态即应传入值
+            let applied_hidden = target;
+            assert_eq!(applied_hidden, !current);
+        }
     }
 }

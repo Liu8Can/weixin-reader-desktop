@@ -40,6 +40,8 @@ export const attachEventToSameOriginIframes = (
   const instrumented = new WeakSet<HTMLIFrameElement>();
   // 缓存每个 doc 的 wrapped 监听器引用——removeEventListener 需要同一引用
   const attached = new Map<Document, EventListener>();
+  // 每个已挂载文档对应的 DOM 观察器（attachDoc 内创建；统一于 detach 断开）
+  const observers: MutationObserver[] = [];
 
   const wrap = (doc: Document): EventListener => {
     if (eventType !== 'mousemove') return handler as EventListener;
@@ -59,6 +61,25 @@ export const attachEventToSameOriginIframes = (
     const wrapped = wrap(doc);
     attached.set(doc, wrapped);
     doc.addEventListener(eventType, wrapped, true);
+    // 该 doc 自身的 DOM 变更也可能新增（嵌套）iframe——微信读书正文实际
+    // 渲染在多层 same-origin iframe 里；只观察顶层文档会漏掉深度>1 的 iframe
+    // （真机取证：焦点落入深层正文后按键全灭的根因）。每个已挂载 doc 各配
+    // 一份观察器，统一在 detach 时断开。
+    const docObserver = new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (isIframe(node)) {
+            instrument(node);
+          } else if (node instanceof Element) {
+            node.querySelectorAll?.('iframe').forEach(child => instrument(child));
+          }
+        }
+      }
+    });
+    if (doc.documentElement) {
+      docObserver.observe(doc.documentElement, { childList: true, subtree: true });
+    }
+    observers.push(docObserver);
   };
 
   const instrument = (iframe: Element): void => {
@@ -114,6 +135,10 @@ export const attachEventToSameOriginIframes = (
     detached = true;
     observer.disconnect();
     document.removeEventListener('DOMContentLoaded', onDomReady);
+    for (const docObserver of observers) {
+      docObserver.disconnect();
+    }
+    observers.length = 0;
     for (const [doc, wrapped] of attached) {
       doc.removeEventListener(eventType, wrapped, true);
     }

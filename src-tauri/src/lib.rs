@@ -537,6 +537,20 @@ pub fn run() {
                 {
                     handle_dropped_paths(&app_handle_clone, paths);
                 }
+                // 全屏状态广播（去重）：F11 热路径之外，window-state 冷启动
+                // FULLSCREEN 回放与 monitor 跨屏恢复都直接 set_fullscreen——
+                // 前端 hover 唤出（inject.ts 订阅 fullscreen-changed）必须能
+                // 感知这些路径。Resized 在全屏进出都会触发，按状态变化去重
+                if let tauri::WindowEvent::Resized(_) = event {
+                    if let Some(main_win) = app_handle_clone.get_webview_window("main") {
+                        use std::sync::atomic::{AtomicBool, Ordering};
+                        static LAST_FS: AtomicBool = AtomicBool::new(false);
+                        let is_fs = main_win.is_fullscreen().unwrap_or(false);
+                        if LAST_FS.swap(is_fs, Ordering::SeqCst) != is_fs {
+                            let _ = main_win.emit("fullscreen-changed", is_fs);
+                        }
+                    }
+                }
             });
 
             // Menu Init - AFTER main window is created
@@ -624,6 +638,8 @@ pub fn run() {
             commands::set_title,
             commands::toggle_stealth,
             commands::toggle_menu_bar,
+            #[cfg(target_os = "windows")]
+            commands::reveal_menu_bar_transient,
             commands::simulate_menu_click,
             commands::set_content_source_enabled,
             menu::claim_settings_target,

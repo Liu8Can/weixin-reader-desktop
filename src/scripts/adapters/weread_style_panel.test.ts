@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, test } from 'bun:test';
 import type { PluginAPI } from '../core/plugin_types';
 import { setupStylePanel } from './weread_style_panel';
 
@@ -143,7 +143,7 @@ describe('WeRead 纯白正文背景黑度', () => {
 
   it('点击背景档位写入对应色值且不联动文字亮度', async () => {
     const context = createAPI({ whiteText: true });
-    teardown = setupStylePanel(context.api);
+    let localTeardown = setupStylePanel(context.api);
 
     document.querySelector<HTMLButtonElement>('button[data-value="#16171a"]')?.click();
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -259,4 +259,32 @@ describe('WeRead 纯白正文背景黑度', () => {
       expect(patch?.progressBarHeight).toBeNull();
     });
   });
+});
+
+// dev.18：整窗 UI 随微信读书主题联动（archived 679f58b 设计恢复）
+describe('微信读书主题 → 整窗联动契约', () => {
+  test('watcher 变化时调用 plugin:window|set_theme（菜单栏/原生件深浅色）', async () => {
+    const calls: Array<{ label?: string; value?: string }> = [];
+    (window as any).__TAURI__ = {
+      ...(window as any).__TAURI__,
+      __currentWindow: { label: 'main' },
+      core: { invoke: async (cmd: string, args: any) => { if (cmd === 'plugin:window|set_theme') calls.push(args); return null; } },
+    };
+    const context = createAPI({ whiteText: true });
+    let localTeardown = setupStylePanel(context.api);
+    // 模拟初始（暗色 wr_theme cookie 由测试环境注入? happy-dom 无 cookie 概念——
+    // 直接改 cookie：happy-dom document.cookie 可写）
+    document.cookie = 'wr_theme=dark; path=/';
+    await Bun.sleep(1000); // 初始 sync 已发（冷启动对齐）
+    document.cookie = 'wr_theme=light; path=/';
+    await Bun.sleep(1100); // watcher 800ms + 余量
+    const themes = calls.map(c => c.value);
+    expect(themes).toContain('light');       // 切亮后联动亮
+    // 恢复暗
+    document.cookie = 'wr_theme=dark; path=/';
+    await Bun.sleep(1100);
+    expect(calls.map(c => c.value).pop()).toBe('dark'); // 最后一次回暗
+    localTeardown();
+    delete (window as any).__TAURI__;
+  }, 6000);
 });

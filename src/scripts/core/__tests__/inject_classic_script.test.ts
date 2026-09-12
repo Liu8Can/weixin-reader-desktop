@@ -30,10 +30,12 @@ describe('inject.js 产物必须是经典脚本（无模块语法）', () => {
     expect(MODULE_SYNTAX.test('function f(){ return "export?"; } main();')).toBe(false);
   });
 
-  it('关键注入锚点存在（快捷键 handler 与 hover 链路确在产物中）', () => {
+  it('关键注入锚点存在（快捷键 handler 与全屏叉号链路确在产物中）', () => {
     expect(dist).toContain('toggle_menu_bar');
     expect(dist).toContain('simulate_menu_click');
-    expect(dist).toContain('reveal_menu_bar_transient');
+    // dev.9：碰顶交互改为退出全屏叉号（旧 reveal_menu_bar_transient 白条已退役）
+    expect(dist).toContain('wxrd-exit-fullscreen');
+    expect(dist).toContain('toggle_fullscreen');
     expect(dist).toContain('attachEventToSameOriginIframes');
     expect(dist).toContain('wxrd_injected');
   });

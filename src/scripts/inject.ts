@@ -2,7 +2,11 @@ import { AppRuntime } from './core/app_runtime';
 import { attachEventToSameOriginIframes, attachKeyboardToSameOriginIframes } from './core/iframe_keyboard';
 import { log } from './core/logger';
 import { invoke, listen } from './core/tauri';
-import { REVEAL_MS, shouldRevealMenuBar } from './core/hover_reveal';
+import {
+  ensureExitButton,
+  isEdgeHit,
+  showExitButton,
+} from './core/fullscreen_exit_button';
 
 
 
@@ -127,22 +131,28 @@ async function main(): Promise<void> {
   //   顶层视口坐标），主文档事件回退原 clientY。
   // 触发后 500ms 节流：避免驻留命中带期间 60Hz 连发 IPC。
   if (isWindows) {
+    // 全屏碰顶交互（dev.9 重设计）：不再唤出菜单栏白色标题条，改为显示
+    // 页面内「退出全屏」叉号按钮（浏览器全屏式）；点击 = toggle_fullscreen
+    //（与 F11 同路径：退出全屏 + 菜单栏/标题回窗）。深浅主题双适配由
+    // fullscreen_exit_button 的 CSS 负责（wr_whiteTheme / prefers-color-scheme）。
     let inFullscreen = false;
     let suppressEdgeMove = false;
-    let lastRevealAt = 0;
+    const hideTimer: { current: ReturnType<typeof setTimeout> | null } = { current: null };
     const edgeHandler = (e: MouseEvent) => {
+      if (!inFullscreen || suppressEdgeMove) return;
       const topClientY = (e as { __atreaderTopClientY?: number }).__atreaderTopClientY;
       const y = typeof topClientY === 'number' ? topClientY : e.clientY;
-      const revealAt = shouldRevealMenuBar(
-        { inFullscreen, suppressEdgeMove },
-        y,
-        Date.now(),
-        lastRevealAt,
-      );
-      if (revealAt !== null) {
-        lastRevealAt = revealAt;
-        invoke('reveal_menu_bar_transient', { revealMs: REVEAL_MS })
-          .catch(() => {});
+      // 指针离开命中带较远时不隐藏（保留 EXIT_BUTTON_LINGER_MS 的找回窗口）；
+      // 只有隐藏计时到点才由 showExitButton 内部的 setTimeout 收回。
+      if (!isEdgeHit(y)) return;
+      const button = ensureExitButton(document);
+      if (button) {
+        showExitButton(button, hideTimer);
+        if (button.onclick === null) {
+          button.onclick = () => {
+            invoke('simulate_menu_click', { action: 'toggle_fullscreen' }).catch(() => {});
+          };
+        }
       }
     };
     window.addEventListener('mousemove', edgeHandler, true);
@@ -152,13 +162,16 @@ async function main(): Promise<void> {
     try {
       void attachEventToSameOriginIframes('mousemove', edgeHandler as (event: never) => void);
     } catch (error) {
-      log.error('[Inject] iframe mousemove 转发挂载失败（hover 唤出仍作用于主文档）', error);
+      log.error('[Inject] iframe mousemove 转发挂载失败（退出全屏按钮仍作用于主文档）', error);
     }
     void listen('fullscreen-changed', (event) => {
       inFullscreen = event.payload === true;
       if (inFullscreen) {
         suppressEdgeMove = true;
         setTimeout(() => { suppressEdgeMove = false; }, 200);
+      } else {
+        // 退出全屏时立刻收起按钮
+        document.getElementById('wxrd-exit-fullscreen')?.classList.remove('wxrd-edge-shown');
       }
     }).catch(() => {});
   }

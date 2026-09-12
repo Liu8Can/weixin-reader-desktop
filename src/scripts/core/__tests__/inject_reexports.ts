@@ -6,9 +6,9 @@
  * inject.ts 保持零 export。严禁从 inject.ts re-export 任何东西。
  */
 export {
-  EDGE_HIT_PX,
-  EDGE_THROTTLE_MS,
-  REVEAL_MS,
-  shouldRevealMenuBar,
-} from '../hover_reveal';
+  EXIT_BUTTON_ID,
+  EXIT_BUTTON_EDGE_PX,
+  EXIT_BUTTON_LINGER_MS,
+  isEdgeHit,
+} from '../fullscreen_exit_button';
 export { attachEventToSameOriginIframes } from '../iframe_keyboard';

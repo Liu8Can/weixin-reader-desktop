@@ -118,7 +118,7 @@
           ${READING_BACKGROUND_PRESETS.map((preset)=>`<button type="button" data-value="${preset.value}">${preset.label}</button>`).join("")}
         </div>
       </div>
-      <p class="wxrd-hint">夜间：深色底 + 提亮文字；日间：无效；插图同步提亮</p>
+      <p class="wxrd-hint">夜间：深色底 + 提亮文字与插图（插图反色）；日间：无效</p>
     </div>
     <div class="wxrd-panel-section">
       <div class="wxrd-field">
@@ -152,6 +152,12 @@
         }
         body:not(.wr_whiteTheme) .wr_canvasContainer canvas {
           filter: brightness(${brightness}) !important;
+        }
+        /* 正文插图/公式是独立 <img>（黑墨透明底/白底），深底上黑墨不可见；
+           brightness 对纯黑墨无效（0×N=0），必须反色成白墨，色相用 hue-rotate 抵消。
+           限定正文容器防止命中页面装饰图（头像/封面等）。 */
+        body:not(.wr_whiteTheme) .readerChapterContent img {
+          filter: invert(1) hue-rotate(180deg) !important;
         }
         body.wr_whiteTheme .readerContent > .app_content:not(.app_content_in_reader),
         body.wr_whiteTheme .wr_horizontalReader_app_content,

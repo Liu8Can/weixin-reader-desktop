@@ -143,7 +143,7 @@ describe('WeRead 纯白正文背景黑度', () => {
 
   it('点击背景档位写入对应色值且不联动文字亮度', async () => {
     const context = createAPI({ whiteText: true });
-    let localTeardown = setupStylePanel(context.api);
+    teardown = setupStylePanel(context.api);
 
     document.querySelector<HTMLButtonElement>('button[data-value="#16171a"]')?.click();
     await new Promise(resolve => setTimeout(resolve, 0));

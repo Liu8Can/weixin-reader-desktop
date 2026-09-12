@@ -66,6 +66,22 @@ describe('WeRead 纯白正文背景黑度', () => {
     expect(css).toContain('background-color: #16171a !important');
   });
 
+  it('夜间给正文插图反色补偿：只命中正文容器内 img，不碰页面装饰图', () => {
+    const context = createAPI({ whiteText: true });
+    teardown = setupStylePanel(context.api);
+
+    const css = context.styles.get('wxrd-white-text');
+    // 插图/公式是独立 <img> 元素，深底上黑墨必须反色成白墨（brightness 对纯黑无效）
+    expect(css).toContain('body:not(.wr_whiteTheme) .readerChapterContent img');
+    expect(css).toContain('filter: invert(1) hue-rotate(180deg) !important');
+    // 限定正文容器、夜间分支，防误伤日间模式与页面装饰性图片（头像/封面）
+    expect(css!.match(/invert\(1\)/g)).toHaveLength(1);
+    // invert 与 hue-rotate 必须成对出现，防止未来只删一半导致反色规则漂移
+    expect(css!.match(/hue-rotate\(180deg\)/g)).toHaveLength(1);
+    expect(css).not.toContain('body.wr_whiteTheme .readerChapterContent img');
+    expect(css).not.toContain('body:not(.wr_whiteTheme) img');
+  });
+
   it('阅读宽度默认关闭，可在 52% 到 98% 间按 2% 调节', () => {
     const context = createAPI();
     teardown = setupStylePanel(context.api);

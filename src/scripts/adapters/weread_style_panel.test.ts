@@ -134,7 +134,8 @@ describe('WeRead 纯白正文背景黑度', () => {
     expect(css).toContain('.readerChapterContent');
     expect(css).toContain('.renderTargetContainer');
     expect(css).toContain('.wr_canvasContainer');
-    expect(css!.match(/background-color: #18191b !important/g)).toHaveLength(1);
+    expect(css!.match(/background-color: #18191b !important/g)).toHaveLength(2); // 容器组块 + 两侧留白 body
+    expect(css!.match(/body:not\(.wr_whiteTheme\)\s*\{[\s\S]*background-color: #18191b !important[\s\S]*\}/)).not.toBeNull(); // 两侧留白随黑度
     expect(css!.match(/border-radius: 16px !important/g)).toHaveLength(2);
   });
 

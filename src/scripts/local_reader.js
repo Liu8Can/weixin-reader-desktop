@@ -153,6 +153,16 @@
         body:not(.wr_whiteTheme) .wr_canvasContainer canvas {
           filter: brightness(${brightness}) !important;
         }
+        /* 两侧留白随主题（用户 dev.13 验收反馈：文字/正文/画布会换，但两侧
+           空白区域不换——bug）。正文是我们的染色体系，页面底（body 两侧留白）
+           必须同体系切换：夜间与正文黑度同色形成沉浸底；日间恢复纯白页面底。
+           仅在白底正文开启时染色，关闭时移除规则即可还原微信读书原生底色。 */
+        body:not(.wr_whiteTheme) {
+          background-color: ${background} !important;
+        }
+        body.wr_whiteTheme {
+          background-color: #fff !important;
+        }
         /* 正文插图/公式是独立 <img>（黑墨透明底/白底），深底上黑墨不可见；
            brightness 对纯黑墨无效（0×N=0），必须反色成白墨，色相用 hue-rotate 抵消。
            限定正文容器防止命中页面装饰图（头像/封面等）。 */

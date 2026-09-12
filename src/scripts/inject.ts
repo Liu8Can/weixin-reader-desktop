@@ -107,8 +107,16 @@ async function main(): Promise<void> {
   };
 
   window.addEventListener('keydown', shortcutHandler, true); // capture 阶段拦截，比 WebView2 默认行为更早
-  // 同源 iframe 转发：正文 frame 内按键同样可达（跨域 frame 无法转发，见工具注释）
-  const detachIframeForwarding = attachKeyboardToSameOriginIframes(shortcutHandler);
+  // 同源 iframe 转发：正文 frame 内按键同样可达（跨域 frame 无法转发，见工具注释）。
+  // 转发器内部的 observe 已改为 DOMContentLoaded 后再挂（见 iframe_keyboard 顶部
+  // 注释），但任何挂载异常都不允许炸穿 main()：快捷键转发属增强能力，失败
+  // 不应连累 AppRuntime/样式面板（dev.3 真机事故的教训——曾让整条注入链死亡）。
+  let detachIframeForwarding: (() => void) | null = null;
+  try {
+    detachIframeForwarding = attachKeyboardToSameOriginIframes(shortcutHandler);
+  } catch (error) {
+    log.error('[Inject] iframe 键盘转发挂载失败（快捷键仍作用于主文档）', error);
+  }
 
   // 全屏 hover 唤出菜单栏（Windows：全屏为 borderless，OS 无「顶边唤出」行为，
   // 由应用自建命中区）。命中带取顶层视口 clientY ≤ 2（125%/150% DPI 下 CSS
@@ -139,8 +147,13 @@ async function main(): Promise<void> {
     };
     window.addEventListener('mousemove', edgeHandler, true);
     // 指针在正文 iframe 内时 mousemove 不冒泡出 frame——与 keydown 同构转发
-    // （监听随页面生命周期存在，无需 detach；失败时特性静默退化）
-    void attachEventToSameOriginIframes('mousemove', edgeHandler as (event: never) => void);
+    // （监听随页面生命周期存在，无需 detach；失败只损失 hover 转发，
+    // 不得向上抛——main() 后续的 AppRuntime 初始化比它重要得多）
+    try {
+      void attachEventToSameOriginIframes('mousemove', edgeHandler as (event: never) => void);
+    } catch (error) {
+      log.error('[Inject] iframe mousemove 转发挂载失败（hover 唤出仍作用于主文档）', error);
+    }
     void listen('fullscreen-changed', (event) => {
       inFullscreen = event.payload === true;
       if (inFullscreen) {
@@ -156,7 +169,7 @@ async function main(): Promise<void> {
     (window as any).atreaderRuntime = runtime;
     log.info(`[Inject] Initialized for ${window.location.hostname}`);
   } catch (error) {
-    detachIframeForwarding();
+    detachIframeForwarding?.();
     runtime.destroy();
     log.error('[Inject] Critical initialization error', error);
   }

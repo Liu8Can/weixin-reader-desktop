@@ -78,8 +78,6 @@ export const attachEventToSameOriginIframes = (
 
   const isIframe = (node: Node): node is Element => node.nodeName === 'IFRAME';
 
-  document.querySelectorAll('iframe').forEach(node => instrument(node));
-
   const observer = new MutationObserver(records => {
     for (const record of records) {
       for (const node of record.addedNodes) {
@@ -91,10 +89,31 @@ export const attachEventToSameOriginIframes = (
       }
     }
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // WebView2 在文档解析最早期执行注入脚本，此刻 <html> 尚未出现，
+  // documentElement 为 null —— observer.observe(null) 会抛 TypeError
+  // （dev.3 真机事故根因：一个异常炸穿 main()，整条注入链死亡，
+  // 样式面板/快捷键/hover 唤出全部消失）。观察与初次扫描一样需要
+  // documentElement 就绪：同步就绪立即执行，否则挂 DOMContentLoaded。
+  const scan = (): void => {
+    document.querySelectorAll('iframe').forEach(node => instrument(node));
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  };
+  let detached = false;
+  const onDomReady = (): void => {
+    document.removeEventListener('DOMContentLoaded', onDomReady);
+    if (!detached) scan();
+  };
+  if (document.documentElement) {
+    scan();
+  } else {
+    document.addEventListener('DOMContentLoaded', onDomReady);
+  }
 
   return () => {
+    detached = true;
     observer.disconnect();
+    document.removeEventListener('DOMContentLoaded', onDomReady);
     for (const [doc, wrapped] of attached) {
       doc.removeEventListener(eventType, wrapped, true);
     }

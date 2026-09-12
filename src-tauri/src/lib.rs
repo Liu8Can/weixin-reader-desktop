@@ -651,6 +651,7 @@ pub fn run() {
             commands::toggle_menu_bar,
             #[cfg(target_os = "windows")]
             commands::reveal_menu_bar_transient,
+            commands::is_main_fullscreen,
             commands::simulate_menu_click,
             commands::set_content_source_enabled,
             menu::claim_settings_target,

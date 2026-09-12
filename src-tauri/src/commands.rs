@@ -444,6 +444,19 @@ pub fn switch_bookstore_by_index<R: Runtime>(
 }
 
 /// 前端注入脚本初始化完成时调用，通知 Rust 端按当前站点应用缩放
+/// 主窗口当前是否处于全屏（窗口级）。
+///
+/// 启动路径（window-state 全屏回放 / monitor 跨屏恢复）的 fullscreen-changed
+/// emit 与注入脚本 listen 注册存在竞速：emit 是非持久广播，发生在订阅完成
+/// 前即丢失（dev.12 探针实证：全屏会话 inFullscreen 恒 false）。前端把
+/// 本命令作为真相源（事件仍保留作加速器）。
+#[tauri::command]
+pub fn is_main_fullscreen(app: AppHandle) -> bool {
+    app.get_webview_window("main")
+        .and_then(|win| win.is_fullscreen().ok())
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub fn apply_site_zoom(app: AppHandle, site_id: String) {
     let settings = crate::settings::read_settings(&app)

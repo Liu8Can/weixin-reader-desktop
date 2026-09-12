@@ -138,22 +138,54 @@ async function main(): Promise<void> {
     let inFullscreen = false;
     let suppressEdgeMove = false;
     const hideTimer: { current: ReturnType<typeof setTimeout> | null } = { current: null };
+    // 诊断窗（同第5轮方法论：先可观测再判定）：真机 CDP 直接读
+    // window.wxrdEdgeProbe 判定链路停在哪一步
+    const probe = { inFullscreen: false, suppressed: false, lastY: -1, handlerFired: 0, lastGuard: '' };
+    (window as any).wxrdEdgeProbe = probe;
+    // 真相源策略（dev.12 定案）：历史 inFullscreen 闭包只被
+    // fullscreen-changed 事件驱动，而启动全屏回放的 emit 与注入脚本
+    // listen 注册存在竞速（非持久广播在订阅前发生即丢失）——探针实证
+    // 全屏会话 inFullscreen 恒 false。改为 edgeHandler 触发时主动
+    // invoke is_main_fullscreen 查询（带 200ms 去抖缓存），事件仍
+    // 保留为加速器。
+    let fsProbeCache: { at: number; value: boolean } | null = null;
+    const fsNow = (): Promise<boolean> => {
+      const fresh = fsProbeCache && Date.now() - fsProbeCache.at < 200;
+      const cached = fsProbeCache?.value;
+      if (fresh && typeof cached === 'boolean') return Promise.resolve(cached);
+      return invoke<boolean>('is_main_fullscreen').catch(() => false).then((live) => {
+        const known = inFullscreen;
+        const value = live || known; // 事件加速器兜底（后端不可达时）
+        fsProbeCache = { at: Date.now(), value };
+        return value;
+      });
+    };
     const edgeHandler = (e: MouseEvent) => {
-      if (!inFullscreen || suppressEdgeMove) return;
+      probe.lastY = e.clientY;
+      probe.suppressed = suppressEdgeMove;
       const topClientY = (e as { __atreaderTopClientY?: number }).__atreaderTopClientY;
       const y = typeof topClientY === 'number' ? topClientY : e.clientY;
       // 指针离开命中带较远时不隐藏（保留 EXIT_BUTTON_LINGER_MS 的找回窗口）；
       // 只有隐藏计时到点才由 showExitButton 内部的 setTimeout 收回。
       if (!isEdgeHit(y)) return;
-      const button = ensureExitButton(document);
-      if (button) {
-        showExitButton(button, hideTimer);
-        if (button.onclick === null) {
-          button.onclick = () => {
-            invoke('simulate_menu_click', { action: 'toggle_fullscreen' }).catch(() => {});
-          };
+      // 全屏判定改为 fsNow() 主动查询（dev.12 探针实证闭包事件源会丢启动
+      // 全屏回放）。命中后先查询，真全屏才建钮；查询失败退化用事件缓存。
+      void fsNow().then((fs) => {
+        probe.inFullscreen = fs;
+        if (!fs || suppressEdgeMove) { probe.lastGuard = 'fullscreen-or-suppress'; return; }
+        probe.handlerFired += 1;
+        probe.lastGuard = 'pass';
+        const btn = ensureExitButton(document);
+        if (btn) {
+          showExitButton(btn, hideTimer);
+          if (btn.onclick === null) {
+            btn.onclick = () => {
+              invoke('simulate_menu_click', { action: 'toggle_fullscreen' }).catch(() => {});
+            };
+          }
         }
-      }
+      });
+      return;  // 同步段到此为止（其余逻辑已并入异步回调）
     };
     window.addEventListener('mousemove', edgeHandler, true);
     // 指针在正文 iframe 内时 mousemove 不冒泡出 frame——与 keydown 同构转发

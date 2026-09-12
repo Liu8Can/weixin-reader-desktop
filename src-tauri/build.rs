@@ -1,4 +1,4 @@
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=../index.html");
     println!("cargo:rerun-if-changed=../atrd-logo.svg");
     // Tell Cargo to rebuild if inject.js changes
@@ -58,4 +58,26 @@ fn main() {
         ]),
     ))
     .expect("failed to run tauri build");
+
+    // Windows: tauri_build 只用 rustc-link-arg-bins 把 common-controls v6 manifest
+    // 链进 bin target；cargo test 产生的测试宿主 exe 属于 lib target，拿不到该
+    // 参数，无 manifest 时加载器把 comctl32 绑到 WinSxS 5.82 旧版，缺少
+    // TaskDialogIndirect 等 v6 导出，测试二进制直接 STATUS_ENTRYPOINT_NOT_FOUND。
+    // 用 link-arg（作用于全部链接产物）把同一份 resource.lib 补链给测试宿主。
+    #[cfg(target_os = "windows")]
+    {
+        let profile = std::env::var("PROFILE").unwrap_or_default();
+        let out_dir = std::env::var("OUT_DIR")?;
+        let resource = std::path::Path::new(&out_dir).join("resource.lib");
+        println!("cargo:rerun-if-changed={}", resource.display());
+        if resource.exists() {
+            println!("cargo:rustc-link-arg={}", resource.display());
+            // 同一构建目录内 tauri_build 可能因配置缓存生成多个 build out；
+            // resource.lib 固定产出在 OUT_DIR，无需二次定位。
+        } else {
+            panic!("resource.lib not found in OUT_DIR (profile={profile})");
+        }
+    }
+
+    Ok(())
 }

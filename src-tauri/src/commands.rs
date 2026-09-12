@@ -914,7 +914,16 @@ mod tests {
                     cmd: command.into(),
                     callback: tauri::ipc::CallbackFn(0),
                     error: tauri::ipc::CallbackFn(1),
-                    url: "tauri://localhost".parse().unwrap(),
+                    // Tauri 官方 get_ipc_response 示例要求按平台选本地协议 URL；
+                    // Windows/Android 必须用 http://tauri.localhost，否则被判为
+                    // 远程 origin 而 ACL 拒绝（mock_context 的 ACL 为空）。
+                    url: if cfg!(any(windows, target_os = "android")) {
+                        "http://tauri.localhost"
+                    } else {
+                        "tauri://localhost"
+                    }
+                    .parse()
+                    .unwrap(),
                     body: tauri::ipc::InvokeBody::default(),
                     headers: Default::default(),
                     invoke_key: INVOKE_KEY.to_string(),

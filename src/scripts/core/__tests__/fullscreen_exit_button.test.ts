@@ -72,3 +72,21 @@ describe('fullscreen_exit_button 常量契约', () => {
     expect(EXIT_BUTTON_EDGE_PX).toBeLessThanOrEqual(3);
   });
 });
+
+// dev.19：尺寸/位置/整矩命中区契约
+describe('退出全屏按钮几何与命中区（dev.19 用户反馈）', () => {
+  test('尺寸 88px、top 5%、命中区=整矩形（::before 视觉圆 + svg 不拦截）', () => {
+    const button = ensureExitButton(document)!;
+    document.body.className = '';
+    const css = document.getElementById(`${EXIT_BUTTON_ID}-style`)?.textContent ?? '';
+    expect(css).toContain('width: 88px');
+    expect(css).toContain('height: 88px');
+    expect(css).toContain('top: 5%;');
+    // 命中区优先：视觉圆是 ::before（inset 8px → 命中矩形 88 含 8px 透明边）
+    expect(css).toContain('inset: 8px');
+    // svg 永不拦截点击（点击穿透到按钮矩形）
+    expect(css).toContain('pointer-events: none');
+    // 色值自包含（主元素透明容器，不依赖 inherit）
+    expect(css).toContain('background: rgba(20, 21, 23, 0.42);'); // 夜::before 基色
+  });
+});

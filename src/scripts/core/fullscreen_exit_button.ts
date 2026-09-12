@@ -25,7 +25,7 @@ export const EXIT_BUTTON_EDGE_PX = 2;
 export const isEdgeHit = (y: number): boolean => y <= EXIT_BUTTON_EDGE_PX && y >= 0;
 
 /**
- * 创建（或复用）退出全屏按钮节点。挂在 body 上，fixed 顶部居中大圆形（64px，top:10%——从碰顶的边弹出、就近可点，不挡正文）。
+ * 创建（或复用）退出全屏按钮节点。挂在 body 上，fixed 顶部居中大圆形（命中区 88px 矩形、视觉圆 ~72、top:5%——接近顶边弹出，整个矩形区域都可点）。
  * 幂等：重复调用返回同一节点。
  */
 export const ensureExitButton = (doc: Document): HTMLButtonElement | null => {
@@ -50,57 +50,75 @@ export const ensureExitButton = (doc: Document): HTMLButtonElement | null => {
     #${EXIT_BUTTON_ID} {
       position: fixed;
       /* 顶部居中：从碰顶的顶边弹出、就近可点；屏幕正中会挡正文且离命中带太远 */
-      top: 10%;
+      top: 5%;
       left: 50%;
       transform: translateX(-50%) scale(.92);
       z-index: 2147483647;
-      width: 64px;
-      height: 64px;
+      width: 88px;
+      height: 88px;
       display: none;
       align-items: center;
       justify-content: center;
       padding: 0;
       border: none;
       border-radius: 50%;
-      background: rgba(20, 21, 23, 0.42);
+      background: transparent;
       color: #f2f3f5;
       cursor: pointer;
       opacity: 0;
       transition: opacity .16s ease, transform .16s ease, background .16s ease;
-      -webkit-backdrop-filter: blur(8px);
-      backdrop-filter: blur(8px);
-      box-shadow: 0 4px 22px rgba(0, 0, 0, 0.28);
     }
     #${EXIT_BUTTON_ID}.wxrd-edge-shown {
       display: flex;
       opacity: 1;
       transform: translateX(-50%) scale(1);
     }
-    #${EXIT_BUTTON_ID}:hover {
+    #${EXIT_BUTTON_ID}:hover::before {
       background: rgba(20, 21, 23, 0.68);
-      transform: translateX(-50%) scale(1.05);
+    }
+    #${EXIT_BUTTON_ID}:hover {
+      transform: translateX(-50%) scale(1.07);
     }
     body.wr_whiteTheme #${EXIT_BUTTON_ID} {
-      background: rgba(244, 245, 247, 0.55);
       color: #1f2329;
+    }
+    body.wr_whiteTheme #${EXIT_BUTTON_ID}::before {
+      background: rgba(244, 245, 247, 0.55);
       box-shadow: 0 4px 22px rgba(0, 0, 0, 0.12);
     }
-    body.wr_whiteTheme #${EXIT_BUTTON_ID}:hover {
+    body.wr_whiteTheme #${EXIT_BUTTON_ID}:hover::before {
       background: rgba(244, 245, 247, 0.85);
     }
     @media (prefers-color-scheme: light) {
       body:not(.wr_whiteTheme) #${EXIT_BUTTON_ID} {
-        background: rgba(244, 245, 247, 0.55);
         color: #1f2329;
+      }
+      body:not(.wr_whiteTheme) #${EXIT_BUTTON_ID}::before {
+        background: rgba(244, 245, 247, 0.55);
         box-shadow: 0 4px 22px rgba(0, 0, 0, 0.12);
       }
-      body:not(.wr_whiteTheme) #${EXIT_BUTTON_ID}:hover {
+      body:not(.wr_whiteTheme) #${EXIT_BUTTON_ID}:hover::before {
         background: rgba(244, 245, 247, 0.85);
       }
     }
+    /* 命中区=整个 88px 矩形（视觉圆只占中央 ~72px）：命中优先、装饰其次。
+       视觉圆用 ::before 画（background 上的圆+毛玻璃），点击落在矩形任意处都触发。 */
+    #${EXIT_BUTTON_ID}::before {
+      content: '';
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      background: rgba(20, 21, 23, 0.42);
+      box-shadow: 0 4px 22px rgba(0, 0, 0, 0.28);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      transition: background .16s ease;
+    }
     #${EXIT_BUTTON_ID} svg {
-      width: 26px;
-      height: 26px;
+      position: relative;
+      z-index: 1;
+      width: 34px;
+      height: 34px;
       fill: currentColor;
       pointer-events: none;
     }

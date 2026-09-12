@@ -20,6 +20,7 @@ import {
   normalizeWideWidthPercent,
 } from '../core/reader_width';
 import { invoke } from '../core/tauri';
+import { detectWereadTheme } from '../core/weread_theme';
 
 type LineHeightChoice = number | null;
 type SpacingChoice = number | null;
@@ -44,20 +45,6 @@ const READING_GUTTER_PRESETS: Record<string, string> = {
   '#16171a': '#222326', // 深黑正文 → 留白铁灰
   '#000000': '#101012', // 纯黑正文 → 留白炭黑
 };
-/** 微信读书真实主题信号（dev.16 取证）：亮暗不再走 body.wr_whiteTheme
- * DOM 类（新版阅读页 carriers 实测为空），而是 cookie wr_theme=dark|light。
- * 旧 wr_whiteTheme 分支全部为死选择器 —— 亮色下两侧留白仍被夜分支
- * 锁暗的直接根因。 */
-const detectWereadTheme = (): 'dark' | 'light' => {
-  if (document.body.classList.contains('wr_whiteTheme')) return 'light';
-  const matches = document.cookie.matchAll(/(?:^|;\s*)wr_theme=(light|dark)/g);
-  let value: 'light' | 'dark' | null = null;
-  for (const m of matches) value = m[1] as 'light' | 'dark';
-  // 多值时取【最后】一个：真实切换是原位更新；模拟/残留场景里最新的语义
-  // 靠后者（Cookie 存储无序，见 dev.16 验证：双 wr_theme 并存时最后一个为最新写入）
-  return value === 'light' ? 'light' : 'dark';
-};
-
 const gutterColorFor = (background: string): string =>
   READING_GUTTER_PRESETS[background] ?? '#222326';
 
@@ -118,11 +105,23 @@ export const setupStylePanel = (api: PluginAPI): (() => void) => {
 
   const observer = new MutationObserver(() => ensureButton());
   observer.observe(document.documentElement, { childList: true, subtree: true });
+  // BugHunter 低危项：离开阅读页时 DOM observer 可能先于路由事件到达或反之。
+  // 并联监听路由事件，谁先触发谁卸载面板残留规则（离页白闪窗口收窄）。
+  const onRoute = ((e: CustomEvent<{ isReader?: boolean }>) => {
+    if (e.detail?.isReader === false) {
+      teardown?.();
+      teardown = null;
+    }
+  }) as EventListener;
+  window.addEventListener('ipc:route-changed', onRoute);
+  window.addEventListener('wxrd:route-changed', onRoute);
   ensureButton();
 
   return () => {
     disposed = true;
     observer.disconnect();
+    window.removeEventListener('ipc:route-changed', onRoute);
+    window.removeEventListener('wxrd:route-changed', onRoute);
     teardown?.();
     teardown = null;
   };

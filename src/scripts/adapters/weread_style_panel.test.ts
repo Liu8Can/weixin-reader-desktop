@@ -272,19 +272,35 @@ describe('微信读书主题 → 整窗联动契约', () => {
     };
     const context = createAPI({ whiteText: true });
     let localTeardown = setupStylePanel(context.api);
+    // 使 mount 真正发生：reader 路径 + .readerControls 容器（否则面板不装配、
+    // syncWindowTheme 不会挂载——本用例此前 Received:[] 的根因）
+    history.replaceState({}, '', '/web/reader/probe');
+    if (!document.querySelector('.readerControls')) {
+      const host = document.createElement('div');
+      host.className = 'readerControls';
+      document.body.appendChild(host);
+    }
     // 模拟初始（暗色 wr_theme cookie 由测试环境注入? happy-dom 无 cookie 概念——
     // 直接改 cookie：happy-dom document.cookie 可写）
+    // 预置暗色 cookie（写于 mount 之前，初始 sync 立即记录 dark）
     document.cookie = 'wr_theme=dark; path=/';
-    await Bun.sleep(1000); // 初始 sync 已发（冷启动对齐）
+    await Bun.sleep(50); // mount 初始 sync（冷启动对齐）
+    expect(calls.map(c => c.value)).toContain('dark');
     document.cookie = 'wr_theme=light; path=/';
-    await Bun.sleep(1100); // watcher 800ms + 余量
+    await Bun.sleep(950); // watcher 800ms + 余量
     const themes = calls.map(c => c.value);
     expect(themes).toContain('light');       // 切亮后联动亮
     // 恢复暗
     document.cookie = 'wr_theme=dark; path=/';
-    await Bun.sleep(1100);
+    await Bun.sleep(950);
     expect(calls.map(c => c.value).pop()).toBe('dark'); // 最后一次回暗
     localTeardown();
     delete (window as any).__TAURI__;
   }, 6000);
+});
+
+
+// BugHunter 中危项：watcher 契约用例写入的 wr_theme cookie 跨文件污染防线
+afterEach(() => {
+  ['wr_theme=light', 'wr_theme=dark'].forEach((k) => { document.cookie = `${k}; path=/; max-age=0`; });
 });

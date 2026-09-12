@@ -13,6 +13,7 @@
 
 import { getCurrentWindow, type Theme } from '@tauri-apps/api/window';
 import { injectCSS, removeCSS } from '../core/utils';
+import { detectWereadTheme } from '../core/weread_theme';
 import {
   DEFAULT_WIDE_WIDTH_PERCENT,
   normalizeWideWidthPercent,
@@ -88,6 +89,10 @@ export class StyleManager {
 
       // 阅读页与主页的背景兜底策略不同，路由切换时同步
       this.handleBaseBg();
+      // v1.8.4 预审（BugHunter 高危项）：路由切换必须主动下发 set_theme——
+      // 离页回 null / 入页按 cookie 接管原本押在 body 类变更副作用上，
+      // 时机不可靠（主页永久钉死暗窗风险）。lastWindowTheme 去重兜底。
+      this.syncWindowTheme();
     }) as EventListener;
 
     this.legacyRouteChangedHandler = ((e: CustomEvent<{ isReader: boolean }>) => {
@@ -102,6 +107,10 @@ export class StyleManager {
 
       // 阅读页与主页的背景兜底策略不同，路由切换时同步
       this.handleBaseBg();
+      // v1.8.4 预审（BugHunter 高危项）：路由切换必须主动下发 set_theme——
+      // 离页回 null / 入页按 cookie 接管原本押在 body 类变更副作用上，
+      // 时机不可靠（主页永久钉死暗窗风险）。lastWindowTheme 去重兜底。
+      this.syncWindowTheme();
     }) as EventListener;
 
     window.addEventListener('ipc:route-changed', this.routeChangedHandler);
@@ -169,11 +178,7 @@ export class StyleManager {
     // body.wr_whiteTheme DOM 类（上游此判据恒返 'dark'，亮色阅读页被钉成暗窗，
     // 并与我们 weread_style_panel 的 cookie 联动产生 set_theme 双写竞速）。
     // 阅读页真信号 = cookie wr_theme；与 weread_style_panel 共用同一真相源。
-    const domFallback = document.body?.classList.contains('wr_whiteTheme') ? 'light' : 'dark';
-    const match = document.cookie.matchAll(/(?:^|;\s*)wr_theme=(light|dark)/g);
-    let value: 'light' | 'dark' | null = null;
-    for (const m of match) value = m[1] as 'light' | 'dark';
-    return value ?? domFallback;
+    return detectWereadTheme();
   }
 
   private syncWindowTheme(): void {

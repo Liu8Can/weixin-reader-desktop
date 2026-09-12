@@ -165,7 +165,15 @@ export class StyleManager {
     // 外观钉死，劫持 matchMedia，主页的系统主题跟随与深色滤镜全部失真
     // （issue #18）。交还系统跟随（setTheme(null)）。
     if (!this.siteContext.isReaderPage) return null;
-    return document.body?.classList.contains('wr_whiteTheme') ? 'light' : 'dark';
+    // dev.16 真机取证（v1.8.4 合并收口）：新版微信读书阅读页【不存在】
+    // body.wr_whiteTheme DOM 类（上游此判据恒返 'dark'，亮色阅读页被钉成暗窗，
+    // 并与我们 weread_style_panel 的 cookie 联动产生 set_theme 双写竞速）。
+    // 阅读页真信号 = cookie wr_theme；与 weread_style_panel 共用同一真相源。
+    const domFallback = document.body?.classList.contains('wr_whiteTheme') ? 'light' : 'dark';
+    const match = document.cookie.matchAll(/(?:^|;\s*)wr_theme=(light|dark)/g);
+    let value: 'light' | 'dark' | null = null;
+    for (const m of match) value = m[1] as 'light' | 'dark';
+    return value ?? domFallback;
   }
 
   private syncWindowTheme(): void {

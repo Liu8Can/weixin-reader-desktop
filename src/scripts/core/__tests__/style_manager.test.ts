@@ -200,13 +200,27 @@ describe('StyleManager ownership and cleanup', () => {
       undefined,
     );
 
-    document.body.classList.add('wr_whiteTheme');
+    // dev.16 语义收口后：阅读页主题真信号 = cookie wr_theme（上游的
+    // wr_whiteTheme DOM 类仅作无 cookie 兜底）。用例改为写 cookie。
+    document.cookie = 'wr_theme=light; path=/';
+    document.body.classList.add('wr_whiteTheme'); // 兜底路径同时在场，校验 cookie 优先级
     await Bun.sleep(0);
     expect(themeInvoke).toHaveBeenLastCalledWith(
       'plugin:window|set_theme',
       { label: 'main', value: 'light' },
       undefined,
     );
+    // cookie 切回 dark（无 DOM 类），必须随 cookie 变暗
+    document.cookie = 'wr_theme=dark; path=/';
+    document.body.classList.remove('wr_whiteTheme');
+    await Bun.sleep(0);
+    expect(themeInvoke).toHaveBeenLastCalledWith(
+      'plugin:window|set_theme',
+      { label: 'main', value: 'dark' },
+      undefined,
+    );
+    // 清理 cookie 防跨用例污染
+    document.cookie = 'wr_theme=dark; path=/; max-age=0';
 
     manager.destroy();
     manager = null;

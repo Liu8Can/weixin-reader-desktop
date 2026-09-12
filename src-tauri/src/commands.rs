@@ -225,14 +225,16 @@ pub fn set_menu_bar_hidden<R: Runtime>(
     apply(win);
     let mut achieved = matches!(win.is_menu_visible(), Ok(v) if v == !hidden);
     if !achieved {
-        // 一次重试：app 级摘除+重设恢复干净基线（is_app_wide 链保活），
-        // muda init_for_hwnd 重建 hwnd 注册表后再执行目标动作
-        if let Some(menu) = app.menu() {
-            let _ = win.remove_menu();
-            if app.set_menu(menu).is_ok() {
-                apply(win);
-                achieved = matches!(win.is_menu_visible(), Ok(v) if v == !hidden);
-            }
+        // 一次重试：摘除后整菜单重建（全新实例）再执行目标动作。
+        // 曾用 app.set_menu(app.menu())——传入同一个缓存对象疑似被
+        // tauri/muda 去重为 no-op（dev.7 真机 CDP 三连败实证：SHOW 方向
+        // 任何 set_menu(same) 都不能把 NULL 状态恢复挂载）。
+        // rebuild_full_menu 每次构建全新平台菜单并全量下发，代价更高，
+        // 正确性优先。
+        let _ = win.remove_menu();
+        if crate::menu::rebuild_full_menu(app).is_ok() {
+            apply(win);
+            achieved = matches!(win.is_menu_visible(), Ok(v) if v == !hidden);
         }
     }
     if !achieved {

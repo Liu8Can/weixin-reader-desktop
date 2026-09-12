@@ -295,6 +295,10 @@ pub fn toggle_menu_bar<R: Runtime>(app: AppHandle<R>) {
         if set_menu_bar_hidden(&app, &win, visible_after) {
             MENU_HIDDEN.store(visible_after, Ordering::SeqCst);
             crate::menu::set_menu_check_state(&app, "toggle_menu", visible_after);
+            log::info!(
+                "Ctrl+H toggle 达成：hidden={}（is_menu_visible 校验通过）",
+                visible_after
+            );
         } else {
             log::error!("切换菜单栏失败且自愈未达成，状态保持不变（重按重试）");
         }

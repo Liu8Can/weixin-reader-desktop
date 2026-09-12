@@ -178,10 +178,24 @@ async function main(): Promise<void> {
         const btn = ensureExitButton(document);
         if (btn) {
           showExitButton(btn, hideTimer);
-          if (btn.onclick === null) {
-            btn.onclick = () => {
+          if (btn.dataset.wxrdManagedHit !== '1') {
+            btn.dataset.wxrdManagedHit = '1';
+            // 自管理命中（dev.19 真机 hitmap 取证）：微信读书 readerTopBar
+            // (z=80, fixed) 会压住按钮矩形的边角层叠区——DOM 天然命中
+            // 不可达。改为捕获阶段几何判定：pointerdown 落点在按钮 rect 内
+            // 即触发，与层叠大战无关（"范围内皆可点"）。
+            document.addEventListener('pointerdown', (pe) => {
+              if (pe.button !== 0) return;
+              const r = btn.getBoundingClientRect();
+              if (pe.clientX < r.left || pe.clientX > r.right || pe.clientY < r.top || pe.clientY > r.bottom) return;
+              if (!btn.classList.contains('wxrd-edge-shown')) return;
+              pe.preventDefault(); pe.stopImmediatePropagation();
               invoke('simulate_menu_click', { action: 'toggle_fullscreen' }).catch(() => {});
-            };
+            }, true);
+            btn.addEventListener('click', (ce) => {
+              ce.preventDefault();
+              invoke('simulate_menu_click', { action: 'toggle_fullscreen' }).catch(() => {});
+            });
           }
         }
       });

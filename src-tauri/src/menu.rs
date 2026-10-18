@@ -1297,27 +1297,12 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
             | "settings_data"
             | "shortcuts"
             | "help"
-            | "feedback" => {
+            | "feedback"
+            | "check_update" => {
                 let _ = handle_menu_action(app, id);
             }
             "about" => {
                 open_settings_target(app, "about", None, None);
-            }
-            "check_update" => {
-                // Check if update is downloaded and ready to install
-                let mut is_downloaded = false;
-                if let Some(state) = app.try_state::<crate::update::UpdateState>() {
-                    if let Ok(guard) = state.downloaded.lock() {
-                        is_downloaded = *guard;
-                    }
-                }
-
-                if is_downloaded {
-                    // 已下载状态先交给设置页展示；用户确认后再触发安装/重启。
-                    open_settings_target(app, "about", Some("update"), None);
-                } else {
-                    open_settings_target(app, "about", Some("update"), Some("check"));
-                }
             }
             "stealth" => {
                 crate::commands::toggle_stealth(app.clone());

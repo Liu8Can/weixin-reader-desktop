@@ -79,7 +79,11 @@ export class AppRuntime {
     create('AppManager', () => new AppManager());
     create('TurnerManager', () => new TurnerManager());
     create('RemoteManager', () => new RemoteManager());
-    if (!isReader) create('ThemeManager', () => new ThemeManager());
+    // 反色滤镜是给首页不支持深浅自适应的站点（微信读书、番茄小说）兜底的；
+    // 站点在 manifest 声明 nativeTheme 时交给站点自身机制，不注入。
+    const active = getPluginLoader().getActivePlugin();
+    const nativeTheme = active?.manifest.capabilities.nativeTheme === true;
+    if (!isReader && !nativeTheme) create('ThemeManager', () => new ThemeManager());
     create('StyleManager', () => new StyleManager());
   }
 

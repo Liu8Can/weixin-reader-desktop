@@ -105,7 +105,7 @@ example-reader.atrd
 - 已安装 Manifest 是运行时能力开关的权威来源，会覆盖插件代码内用于开发的默认 Manifest。
 - 外部插件构建时会写入 `builtin: false`，不要依赖源码中的 `builtin` 值判断运行环境。
 
-Manifest 还支持 `autoFlip`、`hideCursor`、`remoteControl` 等能力。本文重点说明插件编辑器当前展示的六项站点能力。
+Manifest 还支持 `autoFlip`、`hideCursor`、`remoteControl`、`nativeTheme` 等能力。其中 `nativeTheme: true` 声明站点原生支持系统深浅色自适应：壳层不再为该站点注入强制反色滤镜和非阅读页背景兜底，深浅模式完全交给站点自身机制（如 zread 使用 next-themes 跟随系统）。未声明时壳层维持历史兜底行为，老插件不受影响。本文重点说明插件编辑器当前展示的六项站点能力。
 
 ## 4. 六项能力自声明规范
 

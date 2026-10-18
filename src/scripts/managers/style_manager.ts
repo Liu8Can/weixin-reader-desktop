@@ -154,6 +154,12 @@ export class StyleManager {
       return;
     }
     const runtime = this.siteContext.currentRuntime;
+    // 站点声明原生深浅自适应（nativeTheme）时，非阅读页同样交还站点自身
+    // 机制，壳层不注入任何背景兜底，避免和站点主题渲染打架。
+    if (runtime?.manifest.capabilities.nativeTheme === true) {
+      removeCSS('wxrd-base-bg');
+      return;
+    }
     const systemDark = this.darkModeQuery?.matches
       ?? window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (runtime?.styleOwner === 'manager' && runtime.getDarkThemeCSS && runtime.getLightThemeCSS) {
@@ -168,7 +174,11 @@ export class StyleManager {
   }
 
   private currentWindowTheme(): Theme | null | undefined {
-    if (this.siteContext.siteId !== 'weread') return undefined;
+    if (this.siteContext.siteId !== 'weread') return null;
+    // 非 weread 站点必须主动恢复系统跟随（null）：窗口外观可能被上一站
+    // （weread 阅读页按 cookie set_theme）钉住，跨站导航不会自动复位；
+    // 若放任不管，新站点的 prefers-color-scheme 读到的是泄漏的假主题
+    // （zread 等按 matchMedia 跟随系统的站点会渲染成错误深浅）。
     // 非阅读页（主页/书城）的 body 用 wr_theme_light/dark 标记主题，没有
     // wr_whiteTheme——不能据此判 dark，否则 setTheme('dark') 会把 WebView
     // 外观钉死，劫持 matchMedia，主页的系统主题跟随与深色滤镜全部失真
@@ -184,7 +194,7 @@ export class StyleManager {
   private syncWindowTheme(): void {
     if (window.self !== window.top || !window.__TAURI__) return;
     const theme = this.currentWindowTheme();
-    // 仅非 weread 站点不干预；null（恢复系统跟随）是有效指令，必须下发
+    // null（恢复系统跟随）对非 weread 与 weread 主页都是有效指令，必须下发
     if (theme === undefined) return;
     if (theme === this.lastWindowTheme) return;
     this.lastWindowTheme = theme;

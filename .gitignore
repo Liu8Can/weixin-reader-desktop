@@ -69,6 +69,11 @@ CLAUDE.md
 
 # Test
 test-*.js
+test-temp/
+output/
+.venv/
+__pycache__/
+*.pyc
 
 #worktree for Github Pages
 site/

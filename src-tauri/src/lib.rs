@@ -527,7 +527,7 @@ pub fn run() {
                         .and_then(|s| s.get(site_id))
                         .and_then(|s| s.get("zoom"))
                         .and_then(|z| z.as_f64())
-                        .unwrap_or(0.75)
+                        .unwrap_or(1.0)
                 };
                 let _ = win.set_zoom(zoom);
             }

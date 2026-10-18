@@ -51,6 +51,13 @@ export interface PluginCapabilities {
   hideCursor?: boolean;
   /** 蓝牙遥控器支持 */
   remoteControl?: boolean;
+  /**
+   * 站点原生支持系统深浅色自适应。声明后壳层不再注入强制反色滤镜
+   * （ThemeManager）与非阅读页背景兜底（wxrd-base-bg），深浅模式完全
+   * 交给站点自身机制（如 zread 的 next-themes）。未声明时维持原有
+   * 兜底行为（微信读书、番茄小说等首页不支持自适应的站点依赖它）。
+   */
+  nativeTheme?: boolean;
 }
 
 /**

@@ -1,0 +1,38 @@
+/*
+ * @capability hideToolbar
+ * 「隐藏工具栏」映射为沉浸模式：隐藏最左功能图标栏与右侧全部面板
+ * （TOC 大纲、「来源」文件树、AI 聊天浮层），保留左侧章节目录树供随时跳章。
+ * 同时解除站点对正文栏的 768px 宽度上限，让正文占满隐藏侧栏后的空间
+ * （外层布局自带 max-w-[100rem] 上限，超宽屏不会无限拉伸）。
+ * 仅由插件按设置状态注入与移除；选择器已实站验证命中唯一。
+ */
+/* 最左功能图标栏（sticky 全高、含 w-64）。 */
+[class*="h-[100vh]"][class*="w-64"] {
+  display: none !important;
+}
+
+/* 右侧「来源」文件树面板（sticky、w-80、top-[61px]）。 */
+[class*="h-[calc(100vh-73px)]"][class*="w-80"] {
+  display: none !important;
+}
+
+/* 右侧 TOC 大纲（sticky、top-[93px]）。 */
+[class*="top-[93px]"] {
+  display: none !important;
+}
+
+/* AI 聊天抽屉（fixed 右侧浮层）。 */
+[class*="min-w-110"] {
+  display: none !important;
+}
+
+/* 聊天展开态的宽浮层（fixed、w-[800px]，平时 hidden）。 */
+[class*="w-[800px]"] {
+  display: none !important;
+}
+
+/* 正文栏：站点默认 max-w-5xl + sm:max-w-3xl（768px），
+ * 沉浸模式下解除上限，宽度交给外层 flex 布局分配。 */
+[class*="max-w-5xl"][class*="sm:max-w-3xl"] {
+  max-width: 100% !important;
+}

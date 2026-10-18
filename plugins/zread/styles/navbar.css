@@ -1,0 +1,30 @@
+/*
+ * @capability hideNavbar
+ * 隐藏 Zread 顶部导航栏（搜索 / Ask AI / 分享 / 登录）。
+ * 侧栏与浮层原本为顶部栏预留 61px/93px 偏移，隐藏后需一并回收，
+ * 否则会留下一条空白。仅由插件按设置状态注入与移除。
+ */
+header {
+  display: none !important;
+}
+
+[class*="top-[61px]"] {
+  top: 0 !important;
+}
+
+[class*="top-[93px]"] {
+  /* 93px = 顶部栏 61px + 站点自身留白 32px；顶部栏隐藏后保留留白。 */
+  top: 32px !important;
+}
+
+[class*="h-[calc(100vh-61px)]"] {
+  height: 100vh !important;
+}
+
+[class*="h-[calc(100vh-73px)]"] {
+  height: 100vh !important;
+}
+
+[class*="h-[calc(100vh-93px)]"] {
+  height: calc(100vh - 32px) !important;
+}

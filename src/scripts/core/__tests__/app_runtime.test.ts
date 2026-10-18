@@ -72,6 +72,47 @@ describe('AppRuntime ownership', () => {
     expect((runtime as any).reloadGeneration).toBe(1);
   });
 
+  it('skips the inversion filter only when the active site declares nativeTheme', () => {
+    const originalGetActive = loader.getActivePlugin;
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = (() => ({
+      matches: true,
+      media: '(prefers-color-scheme: dark)',
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => true,
+    })) as typeof window.matchMedia;
+    const destroyAll = (runtime: AppRuntime) => {
+      for (const disposable of (runtime as any).disposables) disposable.destroy();
+      (runtime as any).disposables.length = 0;
+    };
+    try {
+      // 声明 nativeTheme 的站点：非阅读页初始路由也不创建反色滤镜
+      loader.getActivePlugin = mock(() => ({
+        manifest: { capabilities: { nativeTheme: true } },
+      }) as any);
+      const nativeRuntime = new AppRuntime();
+      (nativeRuntime as any).createManagers(false);
+      expect(document.getElementById('wxrd-dark-mode-filter')).toBeNull();
+      destroyAll(nativeRuntime);
+
+      // 未声明的站点（老插件）：维持原有反色兜底
+      loader.getActivePlugin = mock(() => ({
+        manifest: { capabilities: {} },
+      }) as any);
+      const legacyRuntime = new AppRuntime();
+      (legacyRuntime as any).createManagers(false);
+      expect(document.getElementById('wxrd-dark-mode-filter')?.textContent).toContain('invert(1)');
+      destroyAll(legacyRuntime);
+    } finally {
+      loader.getActivePlugin = originalGetActive;
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
   it('serializes plugin reload and refreshes settings before replacing the runtime', async () => {
     const order: string[] = [];
     const runtime = new AppRuntime();

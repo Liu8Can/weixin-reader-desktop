@@ -268,6 +268,59 @@ describe('StyleManager ownership and cleanup', () => {
     manager = null;
   });
 
+  it('restores the system theme follow on non-weread sites (cross-site pin leak)', async () => {
+    const { runtime } = createRuntime('manager');
+    const registry = PluginRegistry.getInstance();
+    registry.register(runtime);
+    registry.setActivePlugin(runtime.id);
+
+    // 上一个 weread 会话按 cookie set_theme 钉住的窗口外观，不允许泄漏到
+    // 本站点：非 weread 站点初始化即恢复系统跟随（setTheme(null)），否则
+    // 按 matchMedia 跟随系统的站点（如 zread）会读到劫持后的假主题。
+    manager = new StyleManager();
+    expect(themeInvoke).toHaveBeenCalledWith(
+      'plugin:window|set_theme',
+      { label: 'main', value: null },
+      undefined,
+    );
+
+    manager.destroy();
+    manager = null;
+  });
+
+  it('nativeTheme 站点的非阅读页不注入背景兜底', () => {
+    const { runtime } = createRuntime('plugin');
+    const manifest = {
+      ...runtime.manifest,
+      capabilities: { ...runtime.manifest.capabilities, nativeTheme: true },
+    };
+    Object.defineProperty(runtime, 'manifest', { value: manifest, configurable: true });
+    runtime.isReaderPage = () => false;
+    const registry = PluginRegistry.getInstance();
+    registry.register(runtime);
+    registry.setActivePlugin(runtime.id);
+
+    manager = new StyleManager();
+    // zread 等原生支持深浅自适应的站点：壳层不注入任何背景，交给站点机制
+    expect(document.getElementById('wxrd-base-bg')).toBeNull();
+    manager.destroy();
+    manager = null;
+  });
+
+  it('未声明 nativeTheme 的插件站点非阅读页仍注入背景兜底', () => {
+    const { runtime } = createRuntime('plugin');
+    runtime.isReaderPage = () => false;
+    const registry = PluginRegistry.getInstance();
+    registry.register(runtime);
+    registry.setActivePlugin(runtime.id);
+
+    manager = new StyleManager();
+    // 番茄等首页不支持深浅自适应的站点：系统深色时保留 #2c2c2c 兜底
+    expect(document.getElementById('wxrd-base-bg')?.textContent).toContain('#2c2c2c');
+    manager.destroy();
+    manager = null;
+  });
+
   it('does not synchronize the native window theme from an iframe', () => {
     const topDescriptor = Object.getOwnPropertyDescriptor(window, 'top')!;
     Object.defineProperty(window, 'top', { value: {}, configurable: true });

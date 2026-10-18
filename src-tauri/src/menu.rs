@@ -109,7 +109,7 @@ fn get_current_zoom<R: Runtime>(app: &AppHandle<R>, site_id: &str) -> f64 {
         .and_then(|sites| sites.get(site_id))
         .and_then(|site| site.get("zoom"))
         .and_then(|z| z.as_f64())
-        .unwrap_or(0.75)
+        .unwrap_or(1.0)
 }
 
 /// 保存 zoom 值到设置文件（按站点存储）
@@ -436,6 +436,10 @@ pub fn switch_to_site<R: Runtime>(app: &tauri::AppHandle<R>, site_id: &str) {
     };
     if let Some(url) = target {
         if let Some(win) = app.get_webview_window("main") {
+            // 离开微信读书阅读页时窗口外观可能被 set_theme 钉住；跨站导航
+            // 不会自动复位。先恢复系统跟随，避免新站点按泄漏的假主题首屏
+            // 渲染（matchMedia 被劫持）后再闪烁修正。
+            let _ = win.set_theme(None);
             match url.parse::<tauri::Url>() {
                 Ok(u) => {
                     let _ = win.navigate(u);

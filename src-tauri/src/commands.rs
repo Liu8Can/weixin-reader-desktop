@@ -470,7 +470,7 @@ pub fn apply_site_zoom(app: AppHandle, site_id: String) {
         .and_then(|s| s.get(&site_id))
         .and_then(|s| s.get("zoom"))
         .and_then(|z| z.as_f64())
-        .unwrap_or(0.75);
+        .unwrap_or(1.0);
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.set_zoom(zoom);
     }

@@ -249,7 +249,7 @@ mod macos {
     use std::ptr::NonNull;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
     use std::time::Duration;
     use tauri::{AppHandle, Emitter, Manager, Runtime};
 
